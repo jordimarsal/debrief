@@ -27,7 +27,7 @@
         "harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security and the gauntlet are green before each slice's Completion Gate",
         "The final system is installable (uv sync / uv tool install) and each slice has a demo note in its approval record"
       ],
-      "status": "spec_ready"
+      "status": "in_progress"
     }
   ]
 }
