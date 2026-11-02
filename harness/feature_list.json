@@ -2,7 +2,13 @@
   "project": {
     "name": "debrief",
     "parallel": false,
-    "modules": ["decision-memory", "security-audit", "vertical-slices", "architecture-catalog", "gauntlet"],
+    "modules": [
+      "decision-memory",
+      "security-audit",
+      "vertical-slices",
+      "architecture-catalog",
+      "gauntlet"
+    ],
     "audit_level": "standard",
     "workflow": "hybrid",
     "harness_version": "v0.10.3-1-g271c75b",
@@ -21,7 +27,7 @@
         "harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security and the gauntlet are green before each slice's Completion Gate",
         "The final system is installable (uv sync / uv tool install) and each slice has a demo note in its approval record"
       ],
-      "status": "pending"
+      "status": "spec_ready"
     }
   ]
 }
