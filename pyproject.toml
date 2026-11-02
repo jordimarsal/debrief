@@ -1,0 +1,22 @@
+[project]
+name = "debrief"
+version = "0.1.0"
+description = "Evidence MCP for agents: what ggufbench measured, where a buildwright run broke, role proposals as text — never writes"
+readme = "README.md"
+authors = [
+    { name = "Jordi Marsal", email = "jordi.marsal@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = []
+
+[project.scripts]
+debrief = "debrief:main"
+
+[build-system]
+requires = ["uv_build>=0.12.19,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]

@@ -1,0 +1,27 @@
+{
+  "project": {
+    "name": "debrief",
+    "parallel": false,
+    "modules": ["decision-memory", "security-audit", "vertical-slices", "architecture-catalog", "gauntlet"],
+    "audit_level": "standard",
+    "workflow": "hybrid",
+    "harness_version": "v0.10.3-1-g271c75b",
+    "architecture": "hexagonal"
+  },
+  "features": [
+    {
+      "id": 1,
+      "name": "debrief",
+      "title": "debrief — answer agent questions from receipts (bench · run · propose)",
+      "description": "MCP server over two evidence ports: bench (what ggufbench measured, from its artifacts) and run (where a buildwright run broke, from its log), plus routing.propose, which composes both ports' findings into a BW_ROLE_* diff returned as text. debrief never writes (ADR-0001); proposals target roles, never the models.yaml registry (ADR-0003); incomparable rows are refused, not averaged (ADR-0004); the two ports answer independently and share one Finding type (ADR-0002). User-facing and demoable end-to-end per increment, so it is cut into vertical slices (docs/slicing-protocol.md): S1 bench_query, S2 run_inspect, S3 role_propose. The slice map in docs/architecture.md is approved at this parent's Spec Gate, and each slice becomes a feature with part_of: debrief.",
+      "acceptance": [
+        "The parent is done only when its last slice (S3 role_propose) passes its Completion Gate with a recorded demo",
+        "Every tool response is findings or a structured error; no tool writes any file at any point",
+        "A slice's answers come only from its own source: bench from ggufbench artifacts, run from a buildwright run log",
+        "harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security and the gauntlet are green before each slice's Completion Gate",
+        "The final system is installable (uv sync / uv tool install) and each slice has a demo note in its approval record"
+      ],
+      "status": "pending"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+# commit-msg — Conventional Commits guard, installed by harness.
+# Wired as .git/hooks/commit-msg; bypass one commit with `git commit --no-verify`.
+set -u
+
+subject="$(head -n 1 "$1")"
+
+# Generated subjects carry their own semantics and never match the type list.
+case "$subject" in
+  "Merge "*|"Revert "*) exit 0 ;;
+esac
+
+pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|release|revert)(\([a-zA-Z0-9._/-]+\))?(!)?: .+'
+
+if ! printf '%s\n' "$subject" | grep -Eq "$pattern"; then
+  {
+    echo "commit-msg: rejected — subject does not follow Conventional Commits:"
+    echo "  $subject"
+    echo ""
+    echo "  format:  <type>(<optional scope>)!: <summary>"
+    echo "  types:   feat fix docs style refactor perf test build ci chore release revert"
+    echo "  example: feat(auth): add refresh-token rotation"
+  } >&2
+  exit 1
+fi
