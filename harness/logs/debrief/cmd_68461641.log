@@ -1,0 +1,150 @@
+diff --git a/harness/specs/debrief/design.md b/harness/specs/debrief/design.md
+new file mode 100644
+index 0000000..e9f455d
+--- /dev/null
++++ b/harness/specs/debrief/design.md
+@@ -0,0 +1,71 @@
++# Design: debrief (parent)
++
++MCP server: answers from receipts (bench = ggufbench artifacts, run = buildwright log, propose = role diff). Hexagonal: adapter -> port -> domain. Domain has no outward deps and no write path.
++
++ADRs: 0001 never writes; 0002 two ports, one Finding; 0003 roles not registry; 0004 refuse incomparable rows.
++
++## Slice Map
++
++| Slice | Feature (part_of: debrief) | Outcome |
++|---|---|---|
++| S1 | debrief_bench_query | agent asks what ggufbench measured -> findings from real artifacts |
++| S2 | debrief_run_inspect | agent asks where a run broke -> structured findings |
++| S3 | debrief_role_propose | agent gets BW_ROLE_* proposal citing both ports, text only |
++
++S1 is the walking skeleton (real path, no mocks). Parent done after S3 Completion Gate + demo (R9).
++
++## Approach
++
++- Domain: `Finding` (shared currency) + comparability rule. No writes, no ggufbench/buildwright/mcp imports.
++- Driving: one use case per question: QueryBench, InspectRun, ProposeRole. MCP stdio tools + thin CLI for demos.
++- Driven: BenchStore, RunLog ports; adapters read-only.
++- ProposeRole composes both ports and renders BW_ROLE_* diff as text (S3 only).
++
++## Files (package src/debrief/, entry debrief = debrief:main)
++
++| Path | Change | Slice |
++|---|---|---|
++| errors.py | DebriefError (code, message, detail) | S1 |
++| domain.py | Finding, comparability rule | S1 |
++| ports.py | BenchStore, RunLog protocols | S1, S2 |
++| use_cases.py | QueryBench, InspectRun, ProposeRole | S1-S3 |
++| adapters/ggufbench_store.py | read ggufbench artifacts | S1 |
++| adapters/buildwright_log.py | read one run log | S2 |
++| mcp_server.py | MCP stdio adapter + main() | S1-S3 |
++| pyproject.toml | add mcp dependency | S1 |
++| feature_list.json | add 3 slice entries | parent |
++| tests/ | per-slice tests on real fixtures | S1-S3 |
++
++## Signatures
++
++```python
++@dataclass(frozen=True)
++class DebriefError:
++    code: str; message: str; detail: str
++
++@dataclass(frozen=True)
++class Finding:
++    model: str; task: str; outcome: str; reason: str; evidence: str
++
++class BenchStore(Protocol):
++    def findings(self) -> list[Finding] | DebriefError: ...
++class RunLog(Protocol):
++    def findings(self) -> list[Finding] | DebriefError: ...
++
++class QueryBench:
++    def __init__(self, store: BenchStore): ...
++    def run(self) -> list[Finding] | DebriefError: ...
++class InspectRun:
++    def __init__(self, log: RunLog): ...
++    def run(self) -> list[Finding] | DebriefError: ...
++class ProposeRole:
++    def __init__(self, bench: QueryBench, run: InspectRun): ...
++    def run(self) -> str | DebriefError: ...  # text only
++```
++
++Error codes: bench_source_missing, run_source_missing, source_unparseable, incomparable_rows.
++
++## Tests
++
++Real fixtures under tests/ (ggufbench artifact tree, run log excerpt); no mocks. Walking skeleton.
++Gates per slice (R8). Traceability via check-traceability.py. Demo note at Completion Gate (R11).
+diff --git a/harness/specs/debrief/requirements.md b/harness/specs/debrief/requirements.md
+new file mode 100644
+index 0000000..1dc399a
+--- /dev/null
++++ b/harness/specs/debrief/requirements.md
+@@ -0,0 +1,44 @@
++# Requirements: debrief (parent)
++
++Parent feature for 3 vertical slices (S1 bench_query, S2 run_inspect, S3 role_propose).
++Each slice refines its subset in its lite trio.
++
++## R1
++Tool calls return findings or a structured error.
++
++## R2
++No file writes while serving.
++
++## R3
++Bench findings come only from ggufbench artifacts.
++
++## R4
++Run findings come only from a buildwright run log.
++
++## R5
++Role proposal is a BW_ROLE_* diff as text from both ports' findings.
++
++## R6
++Proposals target BW_ROLE_* roles, never models.yaml.
++
++## R7
++Incomparable rows -> structured error, never averaged.
++
++## R8
++Before each slice Completion Gate: init.sh, pytest, ruff, mypy --strict, audit-security, gauntlet green.
++
++## R9
++Parent done only after S3 Completion Gate with recorded demo.
++
++## R10
++Installs with uv sync / uv tool install; smoke call works.
++
++## R11
++Each slice approval record has a demo note (command + output).
++
++## Slice ownership
++
++- S1 debrief_bench_query — R1, R2, R3
++- S2 debrief_run_inspect — R1, R2, R4
++- S3 debrief_role_propose — R1, R2, R5, R6, R7
++- Parent — R8, R9, R10, R11
+diff --git a/harness/specs/debrief/tasks.md b/harness/specs/debrief/tasks.md
+new file mode 100644
+index 0000000..2ce78b6
+--- /dev/null
++++ b/harness/specs/debrief/tasks.md
+@@ -0,0 +1,17 @@
++# Tasks: debrief
++
++- [ ] T1: S1 walking skeleton. Create src/debrief/errors.py (DebriefError), domain.py (Finding + comparability), ports.py (BenchStore, RunLog), use_cases.py (QueryBench), adapters/ggufbench_store.py, mcp_server.py (bench.query tool + main), add mcp to pyproject.toml, add 3 slice entries to feature_list.json. Add tests/test_bench.py using a real ggufbench fixture.
++      depends_on: (none)
++      refs: R1, R2, R3
++
++- [ ] T2: S2 run inspect. Create adapters/buildwright_log.py and InspectRun in use_cases.py. Add run.inspect MCP tool. Add tests/test_run.py using a real run log fixture.
++      depends_on: T1
++      refs: R1, R2, R4
++
++- [ ] T3: S3 role propose. Implement ProposeRole (composes QueryBench + InspectRun) and routing.propose MCP tool returning BW_ROLE_* diff as text. Refuse incomparable rows. Add tests/test_propose.py.
++      depends_on: T2
++      refs: R1, R2, R5, R6, R7
++
++- [ ] T4: Gates and closure. Run harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security, gauntlet. Verify uv sync / uv tool install smoke. Run check-traceability.py. Record demo notes. Move parent to done.
++      depends_on: T3
++      refs: R8, R9, R10, R11

@@ -1,0 +1,146 @@
+33048
+lided with a pointer, as in batch-5.log).
+- Install smoke re-run after the code change (`harness/logs/debrief/install-smoke.log`):
+  `uv sync` exit 0; `uv tool install .` rebuilt `debrief==0.1.0` into a temp tool dir;
+  raw JSON-RPC over the installed binary: initialize / tools/list / tools/call
+  bench.query → 4 findings, `error: null`.
+- Demo transcript re-recorded with the fixed server (`harness/logs/debrief/demo.log`,
+  "demo assertions PASS"): S1/S2/S3 demos + R7 refusal unchanged in content; hostile
+  section extended with the four score probes over MCP stdio — nan/inf/-inf →
+  "score is not a finite number", huge-int → "score overflows a float", propose over a
+  poisoned cohort → `source_unparseable` with "evil-model" absent from the whole
+  transcript. Capture mechanics learned the hard way: a `tools/call` issued the instant
+  after `initialize` can land before the stdio server processes
+  `notifications/initialized` (mcp 2.3 parks its read loop during the inline
+  initialize) and answers -32602 "Invalid request parameters" — the runner settles
+  0.3s and retries; stale probe/capture scripts self-delete before any ruff/bandit
+  scan, and `ls` verified none remain.
+- Gauntlet re-run from G1: G1 PASS (`harness/logs/debrief/gauntlet-g1.log`); G2+G3
+  fresh-eyes round 3 PASS (fix verification + new-angle scan + the 1e999 probe);
+  G4 evidence — `harness/progress/gauntlet_debrief.md` now ends with the round-3
+  four-PASS section; rounds 1–2 preserved verbatim.
+- `python3 harness/tools/check-traceability.py --feature debrief` → 11/11, VERDICT
+  PASS, saved to `harness/specs/debrief/traceability.txt`; traceability rows R8–R11
+  point at the round-3 evidence. APPROVAL Completion Gate section refreshed.
+- Closure state: T4 `[x]` in tasks.md; parent `debrief` → `status: "done"` in
+  `harness/feature_list.json` (it had reverted to `in_progress` in the worktree);
+  validate-feature-list green via init.sh.
+
+## Batch T4 fix round 3 (review round-1 CHANGES_REQUESTED: slice entries restored)
+
+- The three slice entries were missing from `harness/feature_list.json` although T1's
+  deliverable ("add 3 slice entries"), design.md's file table, Batch T1/T4 records and
+  the round-2 G3 note all describe them as present as `pending` — the reviewer traced
+  them to the worktree revert the T4 closure batch itself noticed. Restored per the
+  reviewer's preferred option (no spec mutation):
+  - `debrief_bench_query` (id 2), `debrief_run_inspect` (id 3), `debrief_role_propose`
+    (id 4), each `part_of: "debrief"`, `status: "pending"`, titles/outcomes from
+    design.md's slice map and acceptance rows from requirements.md's slice ownership
+    (S1 R1–R3, S2 R1–R2+R4, S3 R1–R2+R5–R7, plus the ADR constraints).
+  - Parent `debrief` stays `done`; slices stay `pending` (their acceptance is
+    discharged by the parent's APPROVAL demo notes, as APPROVAL already documents).
+- Gates re-run end-to-end after the restore (all exit=0, observed this session):
+  `python3 harness/tools/validate-feature-list.py harness/feature_list.json`
+  → `feature_list.json is valid (protocol v1)` (4 features); `bash harness/init.sh`
+  → `[OK]` (feature_list valid (4 features), 62 passed); `uv run pytest tests`
+  → 62 passed; `uv run ruff check .` → All checks passed!; `uv run ruff format
+  --check .` → 45 files already formatted; `uv run mypy --strict` → no issues in 14
+  source files; `bash harness/tools/audit-security.sh` → no HIGH findings (LOW-only
+  bandit noise: B101 asserts in tests, B105 `PASS` domain constant); `uv sync` →
+  exit 0.
+- Installability smoke re-run after the restore (no source change; re-confirmed):
+  `uv tool install .` into a temp `UV_TOOL_DIR`/`UV_TOOL_BIN_DIR` (cleaned up)
+  built `debrief==0.1.0` and installed the `debrief` executable; raw JSON-RPC over
+  the installed binary answered initialize (id 1), tools/list (id 2: bench.query,
+  run.inspect, routing.propose) and tools/call bench.query (id 3: 4 findings,
+  error null).
+- `python3 harness/tools/check-traceability.py --feature debrief` → `## debrief: 11/11
+  requirements covered`, `VERDICT: PASS` (`harness/specs/debrief/traceability.txt`
+  unchanged in content, verdict re-confirmed).
+- Gauntlet re-run from G1: `bash harness/tools/gauntlet.sh --feature debrief` → PASS
+  (spec trio ok, tasks 4/4 `[x]`, traceability ok). G2+G3: the on-disk per-pass log
+  `harness/logs/debrief/gauntlet-g23.log` still held only the round-2 pass (54 tests,
+  "no new findings"), so it was annotated (recommended, non-blocking item): a
+  per-pass index plus a "Round-3 (final) pass" section now records the fresh-eyes
+  pass over the round-2 fix batch (62 tests): both score-boundary fixes verified at
+  `_map_row`, regression-locked by the 8 boundary rows; fresh-angle scan found no new
+  finding — the `1e999` sibling was re-probed through the public path this round
+  (`source_unparseable`, "score is not a finite number: inf"), and the bool-score
+  guard, the artifact-bounded OverflowError detail (operator-scope roots, as defended
+  in round 2) and the unchanged no-write-path/layer rules are all noted — matching the
+  round-3 verdict in `harness/progress/gauntlet_debrief.md`.
+- `harness/progress/current.md`: the Log now records the round-2 REJECT → round-3
+  fix → **round-3 PASS** chain and this review fix round (it previously stopped at
+  "round-2 PASS").
+- Closure state unchanged: T4 `[x]` in tasks.md; parent `debrief` `done` in
+  `harness/feature_list.json`; APPROVAL and traceability.txt untouched (the restore
+  re-establishes exactly the state their text describes — slices `pending`, parent
+  `done`).
+
+## Batch T4 fix round 4 (gauntlet round-3 findings, per human fix order)
+
+- Gauntlet round 3 REJECTED with 3 findings (recorded in the round history of
+  `harness/progress/gauntlet_debrief.md`); this batch fixed both actionable ones
+  exactly as ordered and defended the third (per protocol), then the gauntlet re-ran
+  from G1.
+- [G2-1 MUST-FIX nested symlink indirection] `src/debrief/adapters/ggufbench_store.py`:
+  `_results_files()` now resolves the store root once, and every candidate —
+  `root / RESULTS_FILE` and each `iterdir()` entry — goes through the new
+  `_contained_results(root, candidate)`, which resolves the candidate and requires
+  `resolved.is_relative_to(root)` before anything is read; an escaping candidate
+  refuses the whole scan via `_Unparseable` -> `source_unparseable`
+  ("a run's results.json escapes the ggufbench artifact root"), matching the
+  evidence-tool direction already established for unreadable/corrupt run dirs
+  (never a silent skip, never a silent read past the boundary). `_read_run` only ever
+  receives resolved-and-contained paths. A resolve-time OSError maps to the same
+  refusal (`from err` chained).
+  Regression rows: `tests/test_bench.py::test_symlinked_results_file_outside_the_root_refuses_the_scan[artifact_root_scan|run_dir_requested]`
+  (hostile table: the external file holds a winning `LEAKED-model` row and the test
+  asserts it never appears in the answer),
+  `test_bench_query_tool_refuses_a_symlink_escaping_below_the_requested_path` (the
+  gauntlet's exact public-path probe: `bench_query("r1")`),
+  `test_symlinked_results_file_inside_the_root_is_still_read` (positive control: the
+  boundary refuses escapes, not symlinks), and
+  `tests/test_propose.py::test_symlink_escaping_the_bench_root_never_reaches_the_proposal[artifact_root_scan|run_dir_requested]`
+  (the leak cannot reach the proposal ranking through `routing.propose`).
+- [G2-2 SHOULD-FIX prefixed role token] `src/debrief/use_cases.py`: new
+  `_canonical_role()` — `role.upper().removeprefix("BW_ROLE_")` — applied in
+  `_propose` before dedup and rendering, so `role=BW_ROLE_WORKER` (and its lowercase
+  form) now yield the canonical `+ BW_ROLE_WORKER=…` diff instead of
+  `BW_ROLE_BW_ROLE_WORKER`; dedup also happens on the canonical name, so a log
+  mixing `worker` and `BW_ROLE_WORKER` collapses to one proposal.
+  Regression table: `test_role_tokens_carrying_the_env_prefix_still_render_a_pasteable_diff`
+  [bare_lowercase|bare_uppercase|prefixed_as_written_in_the_roles_header|prefixed_lowercase],
+  each asserting the normalized `+ BW_ROLE_WORKER=llama-3.1-8b-instruct-q4_k_m` line
+  and the absence of `BW_ROLE_BW_ROLE_`.
+- [G2-3 DEFENDED] no action required, as recorded in the round-3 verdict; its
+  residuals were re-checked this round and all prior-round fixes re-verified through
+  the public MCP path.
+- Both fixes probe-verified through the public MCP path (transient self-deleting
+  probe, "PROBE PASS"): `bench.query {"path": "r1"}` over the escaping tree →
+  `source_unparseable`, findings `[]`, no `LEAKED-model` anywhere;
+  `routing.propose` over the same artifact → the structured error, proposal `""`;
+  prefixed-role propose → normalized diff only.
+- Fresh-eyes G2+G3 pass (`harness/logs/debrief/gauntlet-g23.log`): fixed findings
+  re-verified publicly + regression-locked; 5 new residual probes all PASS —
+  symlink loop (structured error, no crash), escaping run-*directory* symlink
+  (the fix covers any depth, not only one level down), results.json symlink to a
+  directory inside the root (skipped, no crash), contained two-hop symlink chain
+  (still read), degenerate role token `BW_ROLE_` (text-only, never double-prefixed,
+  "not applied" intact); 3 findings defended with named trade-offs (TOCTOU window
+  identical to the accepted `_resolve_within` design and outside the declared
+  single-user threat model — closing it needs `openat2(RESOLVE_BENEATH)`, out of
+  scope for the ordered one-spot fix; degenerate `BW_ROLE_` token is text-only
+  output; the resolve-OSError escape wording is effectively unreachable because
+  non-strict `Path.resolve` swallows component OSErrors).
+- Gates re-run end-to-end after the fix and captured verbatim by a transient
+  self-relocating runner (moved itself to /tmp before any scan, so ruff/bandit
+  never see it) into `harness/logs/debrief/batch-7.log` — six gates, every
+  `[exit=0]`: init.sh `[OK]` + 72 passed (was 62; +10 round-3 regression rows),
+  ruff check, ruff format --check (45 files), mypy --strict (14 files),
+  audit-security (no HIGH; the LOW-only bandit noise elided exactly like
+  batch-4/5/6, verdict line verbatim). A first capture pass had the runner's
+  bandit-elision transform unapplied; it was corrected and the battery re-captured
+  clean.
+- Install smoke re-run after the code change (`harness/logs/debrief/install-smoke.log`):
+  `uv sync` exit 0; `uv to

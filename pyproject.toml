@@ -7,7 +7,9 @@ authors = [
     { name = "Jordi Marsal", email = "jordi.marsal@gmail.com" }
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "mcp>=2.3,<3",
+]
 
 [project.scripts]
 debrief = "debrief:main"
@@ -18,5 +20,21 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "mypy>=1.15",
     "pytest>=9.2.0",
+    "ruff>=0.14",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+# harness/tools are harness-owned scripts executed by the system python3 (<3.14),
+# so py314-only syntax ruff formats towards must never be applied to them.
+extend-exclude = ["harness/tools"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]

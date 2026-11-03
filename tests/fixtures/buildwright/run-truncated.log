@@ -1,0 +1,5 @@
+buildwright run log
+run: r-2026-11-04T11-30Z
+engine_build: llama.cpp-b4937
+task: sql-join
+step: 02 role=worker model=qwen2.5-7b-instruct-q4_k_m outcome=fail reason="patch pushes the join to 41

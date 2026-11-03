@@ -1,0 +1,131 @@
+diff --git a/harness/specs/debrief/design.md b/harness/specs/debrief/design.md
+index e9f455d..9d9e929 100644
+--- a/harness/specs/debrief/design.md
++++ b/harness/specs/debrief/design.md
+@@ -41,23 +41,38 @@ S1 is the walking skeleton (real path, no mocks). Parent done after S3 Completio
+ ```python
+ @dataclass(frozen=True)
+ class DebriefError:
+-    code: str; message: str; detail: str
++    code: str
++    message: str
++    detail: str
++
+ 
+ @dataclass(frozen=True)
+ class Finding:
+-    model: str; task: str; outcome: str; reason: str; evidence: str
++    model: str
++    task: str
++    outcome: str
++    reason: str
++    evidence: str
++
+ 
+ class BenchStore(Protocol):
+     def findings(self) -> list[Finding] | DebriefError: ...
++
++
+ class RunLog(Protocol):
+     def findings(self) -> list[Finding] | DebriefError: ...
+ 
++
+ class QueryBench:
+     def __init__(self, store: BenchStore): ...
+     def run(self) -> list[Finding] | DebriefError: ...
++
++
+ class InspectRun:
+     def __init__(self, log: RunLog): ...
+     def run(self) -> list[Finding] | DebriefError: ...
++
++
+ class ProposeRole:
+     def __init__(self, bench: QueryBench, run: InspectRun): ...
+     def run(self) -> str | DebriefError: ...  # text only
+diff --git a/harness/specs/debrief/tasks.md b/harness/specs/debrief/tasks.md
+index 2ce78b6..5e16238 100644
+--- a/harness/specs/debrief/tasks.md
++++ b/harness/specs/debrief/tasks.md
+@@ -1,17 +1,17 @@
+ # Tasks: debrief
+ 
+-- [ ] T1: S1 walking skeleton. Create src/debrief/errors.py (DebriefError), domain.py (Finding + comparability), ports.py (BenchStore, RunLog), use_cases.py (QueryBench), adapters/ggufbench_store.py, mcp_server.py (bench.query tool + main), add mcp to pyproject.toml, add 3 slice entries to feature_list.json. Add tests/test_bench.py using a real ggufbench fixture.
++- [x] T1: S1 walking skeleton. Create src/debrief/errors.py (DebriefError), domain.py (Finding + comparability), ports.py (BenchStore, RunLog), use_cases.py (QueryBench), adapters/ggufbench_store.py, mcp_server.py (bench.query tool + main), add mcp to pyproject.toml, add 3 slice entries to feature_list.json. Add tests/test_bench.py using a real ggufbench fixture.
+       depends_on: (none)
+       refs: R1, R2, R3
+ 
+-- [ ] T2: S2 run inspect. Create adapters/buildwright_log.py and InspectRun in use_cases.py. Add run.inspect MCP tool. Add tests/test_run.py using a real run log fixture.
++- [x] T2: S2 run inspect. Create adapters/buildwright_log.py and InspectRun in use_cases.py. Add run.inspect MCP tool. Add tests/test_run.py using a real run log fixture.
+       depends_on: T1
+       refs: R1, R2, R4
+ 
+-- [ ] T3: S3 role propose. Implement ProposeRole (composes QueryBench + InspectRun) and routing.propose MCP tool returning BW_ROLE_* diff as text. Refuse incomparable rows. Add tests/test_propose.py.
++- [x] T3: S3 role propose. Implement ProposeRole (composes QueryBench + InspectRun) and routing.propose MCP tool returning BW_ROLE_* diff as text. Refuse incomparable rows. Add tests/test_propose.py.
+       depends_on: T2
+       refs: R1, R2, R5, R6, R7
+ 
+-- [ ] T4: Gates and closure. Run harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security, gauntlet. Verify uv sync / uv tool install smoke. Run check-traceability.py. Record demo notes. Move parent to done.
++- [x] T4: Gates and closure. Run harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security, gauntlet. Verify uv sync / uv tool install smoke. Run check-traceability.py. Record demo notes. Move parent to done.
+       depends_on: T3
+       refs: R8, R9, R10, R11
+diff --git a/pyproject.toml b/pyproject.toml
+index 8b30d87..419b5dc 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -7,7 +7,9 @@ authors = [
+     { name = "Jordi Marsal", email = "jordi.marsal@gmail.com" }
+ ]
+ requires-python = ">=3.14"
+-dependencies = []
++dependencies = [
++    "mcp>=2.3,<3",
++]
+ 
+ [project.scripts]
+ debrief = "debrief:main"
+@@ -18,5 +20,21 @@ build-backend = "uv_build"
+ 
+ [dependency-groups]
+ dev = [
++    "mypy>=1.15",
+     "pytest>=9.2.0",
++    "ruff>=0.14",
+ ]
++
++[tool.ruff]
++line-length = 100
++target-version = "py314"
++# harness/tools are harness-owned scripts executed by the system python3 (<3.14),
++# so py314-only syntax ruff formats towards must never be applied to them.
++extend-exclude = ["harness/tools"]
++
++[tool.ruff.lint]
++select = ["E", "F", "W", "I", "UP", "B"]
++
++[tool.mypy]
++strict = true
++files = ["src", "tests"]
+diff --git a/src/debrief/__init__.py b/src/debrief/__init__.py
+index 3fbbf24..7608a96 100644
+--- a/src/debrief/__init__.py
++++ b/src/debrief/__init__.py
+@@ -1,2 +1,16 @@
+-def main() -> None:
+-    print("Hello from debrief!")
++"""debrief — answers agent questions from receipts; never writes (ADR-0001)."""
++
++from __future__ import annotations
++
++from typing import Any
++
++__all__ = ["main"]
++
++
++def __getattr__(name: str) -> Any:
++    # Lazy on purpose: `import debrief` (and so debrief.domain) must not pull in the mcp SDK.
++    if name == "main":
++        from debrief.mcp_server import main
++
++        return main
++    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

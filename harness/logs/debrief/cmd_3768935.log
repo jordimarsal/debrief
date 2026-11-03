@@ -1,0 +1,64 @@
+220:- Capture mechanics: two transient scripts (`.capture_t4fix.py` for demo+smoke,
+221:  `.capture_battery.py` for batch-5.log) wrote the logs and deleted themselves before
+222:  any ruff/bandit scan; `ls`-verified absent afterwards. Battery first attempted via
+223:  individual `run_command` invocations (all six green, outputs above in session), then
+224:  re-captured verbatim into batch-5.log by the transient runner.
+225:- Closure state unchanged: T4 `[x]` in tasks.md; parent `debrief` stays `done` in
+226:  `harness/feature_list.json` (validator re-run via init.sh: valid).
+227:
+228:## Batch T4 fix round 2 (gauntlet round-2 findings, per human fix order)
+229:
+230:- Gauntlet round 2 REJECTED with 2 sibling findings at the ggufbench score boundary;
+231:  this batch fixed both exactly as ordered — boundary fixes only in
+232:  `src/debrief/adapters/ggufbench_store.py::_map_row`:
+233:- [G2-1 non-finite scores] `_map_row` now converts once (`measure = float(score)`) and
+234:  refuses any non-finite result with `math.isfinite(measure)` → `_Unparseable` →
+235:  `source_unparseable` (json.loads accepts the NaN/Infinity/-Infinity tokens, which
+236:  otherwise hijack the `_role_proposal` winner ranking — `+ BW_ROLE_WORKER=evil-model`
+237:  with "why bench: … score inf/nan"). Regression rows: NaN / Infinity / -Infinity
+238:  fixtures (`tests/fixtures/ggufbench_broken/nonfinite-score-{nan,infinity,
+239:  neg-infinity}/results.json`, single `evil-model` pass row each) +
+240:  `test_bench_refuses_scores_outside_the_finite_float_domain[nan|infinity|
+241:  negative_infinity|huge_int]` asserting code + detail token, plus end-to-end rows
+242:  `tests/test_propose.py::test_poisoned_bench_scores_never_reach_the_proposal_ranking[*]`
+243:  pinning that a poisoned cohort answers a DebriefError, never a fabricated diff.
+244:- [G2-2 huge-int score] the same conversion now runs under `except OverflowError` →
+245:  `_Unparseable("score overflows a float: <digits>")` → `source_unparseable` (JSON
+246:  integers are arbitrary-precision; a 401-digit score escaped QueryBench/ProposeRole/
+247:  the MCP tool as a raw protocol error). Regression row: fixture
+248:  `huge-int-score/results.json` (1 followed by 400 zeros) + the `huge_int_score` row
+249:  above (both tables).
+250:- Fresh-eyes sibling probe: `1e999` (json → inf) refuses through the same isfinite
+251:  gate — no extra fixture needed; run-side findings carry `measure: null` (ADR-0002),
+252:  so the boundary is the only entry path for a poisoned measure.
+253:- `tests/fixtures/ggufbench_broken/README.md` notes the score-boundary fixtures.
+254:- Gates re-run end-to-end after the fix, captured verbatim by a transient self-deleting
+255:  runner into `harness/logs/debrief/batch-6.log` — six gates, every `[exit=0]`:
+256:  init.sh `[OK]` + 62 passed (was 54; +8 score-boundary test cases), ruff check,
+257:  ruff format --check (45 files), mypy --strict (14 files), audit-security (no HIGH;
+258:  LOW-only bandit noise elided with a pointer, as in batch-5.log).
+259:- Install smoke re-run after the code change (`harness/logs/debrief/install-smoke.log`):
+260:  `uv sync` exit 0; `uv tool install .` rebuilt `debrief==0.1.0` into a temp tool dir;
+261:  raw JSON-RPC over the installed binary: initialize / tools/list / tools/call
+262:  bench.query → 4 findings, `error: null`.
+263:- Demo transcript re-recorded with the fixed server (`harness/logs/debrief/demo.log`,
+264:  "demo assertions PASS"): S1/S2/S3 demos + R7 refusal unchanged in content; hostile
+265:  section extended with the four score probes over MCP stdio — nan/inf/-inf →
+266:  "score is not a finite number", huge-int → "score overflows a float", propose over a
+267:  poisoned cohort → `source_unparseable` with "evil-model" absent from the whole
+268:  transcript. Capture mechanics learned the hard way: a `tools/call` issued the instant
+269:  after `initialize` can land before the stdio server processes
+270:  `notifications/initialized` (mcp 2.3 parks its read loop during the inline
+271:  initialize) and answers -32602 "Invalid request parameters" — the runner settles
+272:  0.3s and retries; stale probe/capture scripts self-delete before any ruff/bandit
+273:  scan, and `ls` verified none remain.
+274:- Gauntlet re-run from G1: G1 PASS (`harness/logs/debrief/gauntlet-g1.log`); G2+G3
+275:  fresh-eyes round 3 PASS (fix verification + new-angle scan + the 1e999 probe);
+276:  G4 evidence — `harness/progress/gauntlet_debrief.md` now ends with the round-3
+277:  four-PASS section; rounds 1–2 preserved verbatim.
+278:- `python3 harness/tools/check-traceability.py --feature debrief` → 11/11, VERDICT
+279:  PASS, saved to `harness/specs/debrief/traceability.txt`; traceability rows R8–R11
+280:  point at the round-3 evidence. APPROVAL Completion Gate section refreshed.
+281:- Closure state: T4 `[x]` in tasks.md; parent `debrief` → `status: "done"` in
+282:  `harness/feature_list.json` (it had reverted to `in_progress` in the worktree);
+283:  validate-feature-list green via init.sh.

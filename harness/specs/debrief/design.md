@@ -17,7 +17,9 @@ S1 is the walking skeleton (real path, no mocks). Parent done after S3 Completio
 ## Approach
 
 - Domain: `Finding` (shared currency) + comparability rule. No writes, no ggufbench/buildwright/mcp imports.
-- Driving: one use case per question: QueryBench, InspectRun, ProposeRole. MCP stdio tools + thin CLI for demos.
+- Driving: one use case per question: QueryBench, InspectRun, ProposeRole. MCP stdio
+  tools; the `debrief` entry point is that stdio server and demos drive it from an MCP
+  client — there is no separate CLI adapter.
 - Driven: BenchStore, RunLog ports; adapters read-only.
 - ProposeRole composes both ports and renders BW_ROLE_* diff as text (S3 only).
 
@@ -41,23 +43,38 @@ S1 is the walking skeleton (real path, no mocks). Parent done after S3 Completio
 ```python
 @dataclass(frozen=True)
 class DebriefError:
-    code: str; message: str; detail: str
+    code: str
+    message: str
+    detail: str
+
 
 @dataclass(frozen=True)
 class Finding:
-    model: str; task: str; outcome: str; reason: str; evidence: str
+    model: str
+    task: str
+    outcome: str
+    reason: str
+    evidence: str
+
 
 class BenchStore(Protocol):
     def findings(self) -> list[Finding] | DebriefError: ...
+
+
 class RunLog(Protocol):
     def findings(self) -> list[Finding] | DebriefError: ...
+
 
 class QueryBench:
     def __init__(self, store: BenchStore): ...
     def run(self) -> list[Finding] | DebriefError: ...
+
+
 class InspectRun:
     def __init__(self, log: RunLog): ...
     def run(self) -> list[Finding] | DebriefError: ...
+
+
 class ProposeRole:
     def __init__(self, bench: QueryBench, run: InspectRun): ...
     def run(self) -> str | DebriefError: ...  # text only

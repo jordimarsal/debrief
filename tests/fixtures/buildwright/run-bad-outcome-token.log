@@ -1,0 +1,7 @@
+buildwright run log — evidence of one episode; debrief reads it, never edits it
+run: r-2026-11-06T08-30Z
+engine_build: llama.cpp-b4937
+task: regex-extract
+roles: BW_ROLE_WORKER=gemma-2-9b-it-q4_k_m
+step: 01 role=worker model=gemma-2-9b-it-q4_k_m outcome=timeout reason="token outside the pass/fail enum" evidence=r-2026-11-06T08-30Z/worker.patch
+result: fail failed_steps=01

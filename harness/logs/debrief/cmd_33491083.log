@@ -1,0 +1,309 @@
+diff --git a/harness/feature_list.json b/harness/feature_list.json
+index 98b529a..afd3a78 100644
+--- a/harness/feature_list.json
++++ b/harness/feature_list.json
+@@ -27,7 +27,46 @@
+         "harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security and the gauntlet are green before each slice's Completion Gate",
+         "The final system is installable (uv sync / uv tool install) and each slice has a demo note in its approval record"
+       ],
+-      "status": "in_progress"
++      "status": "done"
++    },
++    {
++      "id": 2,
++      "name": "debrief_bench_query",
++      "part_of": "debrief",
++      "title": "S1 bench_query — what did ggufbench measure?",
++      "description": "Walking skeleton slice (S1 in design.md's slice map): agent asks what ggufbench measured and gets findings from real artifacts. GgufbenchStore reads a results.json artifact tree read-only (R3) and maps rows to the shared Finding type (ADR-0002); bench.query answers with findings or a structured error (R1) and never writes (R2, ADR-0001).",
++      "acceptance": [
++        "Agent asks what ggufbench measured -> findings from real ggufbench artifacts, never synthesized",
++        "Every bench.query response is findings or a structured error; the tool never writes",
++        "Rows measured against different baselines are refused, not averaged (ADR-0004)"
++      ],
++      "status": "pending"
++    },
++    {
++      "id": 3,
++      "name": "debrief_run_inspect",
++      "part_of": "debrief",
++      "title": "S2 run_inspect — where did the buildwright run break?",
++      "description": "Slice S2 in design.md's slice map: agent asks where a run broke and gets structured findings from one buildwright run log. BuildwrightLog maps each logged step to a Finding with role, evidence and reason (R4), carrying no bench knowledge (signature/measure stay null — ADR-0002); run.inspect answers with findings or a structured error (R1) and never writes (R2, ADR-0001).",
++      "acceptance": [
++        "Agent asks where a run broke -> structured findings from the buildwright run log, one per logged step",
++        "Every run.inspect response is findings or a structured error; the tool never writes",
++        "Run findings carry no bench knowledge: signature and measure stay null (ADR-0002)"
++      ],
++      "status": "pending"
++    },
++    {
++      "id": 4,
++      "name": "debrief_role_propose",
++      "part_of": "debrief",
++      "title": "S3 role_propose — BW_ROLE_* diff from both ports' receipts",
++      "description": "Slice S3 in design.md's slice map: agent gets a BW_ROLE_* proposal citing both ports' findings, returned as text only. ProposeRole composes QueryBench + InspectRun, diffs the failed role to the bench winner (R5), targets BW_ROLE_* roles and never models.yaml (R6, ADR-0003), refuses incomparable rows instead of averaging them (R7, ADR-0004), answers findings or a structured error (R1) and never writes (R2, ADR-0001).",
++      "acceptance": [
++        "Agent gets a BW_ROLE_* proposal citing both ports' findings, returned as text only — nothing is applied",
++        "Every routing.propose response is findings or a structured error; diff lines target BW_ROLE_* roles, never models.yaml",
++        "Incomparable rows answer the incomparable_rows structured error, never a ranked or averaged proposal"
++      ],
++      "status": "pending"
+     }
+   ]
+ }
+diff --git a/harness/specs/debrief/design.md b/harness/specs/debrief/design.md
+index e9f455d..266d535 100644
+--- a/harness/specs/debrief/design.md
++++ b/harness/specs/debrief/design.md
+@@ -17,7 +17,9 @@ S1 is the walking skeleton (real path, no mocks). Parent done after S3 Completio
+ ## Approach
+ 
+ - Domain: `Finding` (shared currency) + comparability rule. No writes, no ggufbench/buildwright/mcp imports.
+-- Driving: one use case per question: QueryBench, InspectRun, ProposeRole. MCP stdio tools + thin CLI for demos.
++- Driving: one use case per question: QueryBench, InspectRun, ProposeRole. MCP stdio
++  tools; the `debrief` entry point is that stdio server and demos drive it from an MCP
++  client — there is no separate CLI adapter.
+ - Driven: BenchStore, RunLog ports; adapters read-only.
+ - ProposeRole composes both ports and renders BW_ROLE_* diff as text (S3 only).
+ 
+@@ -41,23 +43,38 @@ S1 is the walking skeleton (real path, no mocks). Parent done after S3 Completio
+ ```python
+ @dataclass(frozen=True)
+ class DebriefError:
+-    code: str; message: str; detail: str
++    code: str
++    message: str
++    detail: str
++
+ 
+ @dataclass(frozen=True)
+ class Finding:
+-    model: str; task: str; outcome: str; reason: str; evidence: str
++    model: str
++    task: str
++    outcome: str
++    reason: str
++    evidence: str
++
+ 
+ class BenchStore(Protocol):
+     def findings(self) -> list[Finding] | DebriefError: ...
++
++
+ class RunLog(Protocol):
+     def findings(self) -> list[Finding] | DebriefError: ...
+ 
++
+ class QueryBench:
+     def __init__(self, store: BenchStore): ...
+     def run(self) -> list[Finding] | DebriefError: ...
++
++
+ class InspectRun:
+     def __init__(self, log: RunLog): ...
+     def run(self) -> list[Finding] | DebriefError: ...
++
++
+ class ProposeRole:
+     def __init__(self, bench: QueryBench, run: InspectRun): ...
+     def run(self) -> str | DebriefError: ...  # text only
+diff --git a/harness/specs/debrief/tasks.md b/harness/specs/debrief/tasks.md
+index 2ce78b6..5e16238 100644
+--- a/harness/specs/debrief/tasks.md
++++ b/harness/specs/debrief/tasks.md
+@@ -1,17 +1,17 @@
+ # Tasks: debrief
+ 
+-- [ ] T1: S1 walking skeleton. Create src/debrief/errors.py (DebriefError), domain.py (Finding + comparability), ports.py (BenchStore, RunLog), use_cases.py (QueryBench), adapters/ggufbench_store.py, mcp_server.py (bench.query tool + main), add mcp to pyproject.toml, add 3 slice entries to feature_list.json. Add tests/test_bench.py using a real ggufbench fixture.
++- [x] T1: S1 walking skeleton. Create src/debrief/errors.py (DebriefError), domain.py (Finding + comparability), ports.py (BenchStore, RunLog), use_cases.py (QueryBench), adapters/ggufbench_store.py, mcp_server.py (bench.query tool + main), add mcp to pyproject.toml, add 3 slice entries to feature_list.json. Add tests/test_bench.py using a real ggufbench fixture.
+       depends_on: (none)
+       refs: R1, R2, R3
+ 
+-- [ ] T2: S2 run inspect. Create adapters/buildwright_log.py and InspectRun in use_cases.py. Add run.inspect MCP tool. Add tests/test_run.py using a real run log fixture.
++- [x] T2: S2 run inspect. Create adapters/buildwright_log.py and InspectRun in use_cases.py. Add run.inspect MCP tool. Add tests/test_run.py using a real run log fixture.
+       depends_on: T1
+       refs: R1, R2, R4
+ 
+-- [ ] T3: S3 role propose. Implement ProposeRole (composes QueryBench + InspectRun) and routing.propose MCP tool returning BW_ROLE_* diff as text. Refuse incomparable rows. Add tests/test_propose.py.
++- [x] T3: S3 role propose. Implement ProposeRole (composes QueryBench + InspectRun) and routing.propose MCP tool returning BW_ROLE_* diff as text. Refuse incomparable rows. Add tests/test_propose.py.
+       depends_on: T2
+       refs: R1, R2, R5, R6, R7
+ 
+-- [ ] T4: Gates and closure. Run harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security, gauntlet. Verify uv sync / uv tool install smoke. Run check-traceability.py. Record demo notes. Move parent to done.
++- [x] T4: Gates and closure. Run harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security, gauntlet. Verify uv sync / uv tool install smoke. Run check-traceability.py. Record demo notes. Move parent to done.
+       depends_on: T3
+       refs: R8, R9, R10, R11
+diff --git a/harness/tools/check-traceability.py b/harness/tools/check-traceability.py
+index 514370c..b507c9f 100755
+--- a/harness/tools/check-traceability.py
++++ b/harness/tools/check-traceability.py
+@@ -78,9 +78,7 @@ def collect_tables(
+     if not progress.is_dir():
+         return merged, statuses
+     for impl in sorted(progress.glob("impl_*.md")):
+-        _merge_impl_table(
+-            impl.read_text(encoding="utf-8"), impl.name, feature, merged, statuses
+-        )
++        _merge_impl_table(impl.read_text(encoding="utf-8"), impl.name, feature, merged, statuses)
+     return merged, statuses
+ 
+ 
+@@ -127,7 +125,7 @@ def _py_tests_define(tests_dir: Path, identifier: str) -> bool:
+     return False
+ 
+ 
+-def _js_tests_mention(tests_dir: Path, pat: "re.Pattern[str]") -> bool:
++def _js_tests_mention(tests_dir: Path, pat: re.Pattern[str]) -> bool:
+     for tf in tests_dir.rglob("*.js"):
+         try:
+             if pat.search(tf.read_text(encoding="utf-8", errors="replace")):
+@@ -221,7 +219,7 @@ def _usage() -> str:
+     return "usage: check-traceability.py --all | --feature NAME [--json] [--help] [root]"
+ 
+ 
+-def parse_args(argv: list[str]) -> "tuple[bool, bool, str | None, Path] | int":
++def parse_args(argv: list[str]) -> tuple[bool, bool, str | None, Path] | int:
+     """Parse CLI flags; return (as_json, all_features, feature, root) or exit code 2."""
+     if "--help" in argv or "-h" in argv:
+         print(_usage())
+@@ -285,9 +283,7 @@ def _validate_root(root: Path) -> int:
+     return 2
+ 
+ 
+-def _feature_names(
+-    root: Path, all_features: bool, feature: str | None
+-) -> "list[str] | None":
++def _feature_names(root: Path, all_features: bool, feature: str | None) -> list[str] | None:
+     """Features to check, or None when the request is unusable (error printed)."""
+     if all_features:
+         names = _selected_features(root, all_features, feature)
+@@ -302,7 +298,7 @@ def _feature_names(
+     return [feature]
+ 
+ 
+-def _emit(results: "list[dict]", verdict: str, as_json: bool) -> None:
++def _emit(results: list[dict], verdict: str, as_json: bool) -> None:
+     if as_json:
+         print(
+             json.dumps(
+diff --git a/harness/tools/validate-feature-list.py b/harness/tools/validate-feature-list.py
+index 722fc5c..fb2ec37 100755
+--- a/harness/tools/validate-feature-list.py
++++ b/harness/tools/validate-feature-list.py
+@@ -22,7 +22,7 @@ AUDIT_LEVELS = ("basic", "standard", "strict")
+ NAME_RE = re.compile(r"^[a-z0-9_]+$")
+ 
+ 
+-def parse_args(argv: list[str]) -> "tuple[bool, str] | int":
++def parse_args(argv: list[str]) -> tuple[bool, str] | int:
+     """Parse CLI flags; return (as_json, path) or exit code 2."""
+     as_json = False
+     path: str | None = None
+@@ -46,7 +46,7 @@ def parse_args(argv: list[str]) -> "tuple[bool, str] | int":
+     return as_json, path
+ 
+ 
+-def _validate_project_section(data: dict, err: "Callable[[str, str, str], None]") -> None:
++def _validate_project_section(data: dict, err: Callable[[str, str, str], None]) -> None:
+     project = data.get("project")
+     if not isinstance(project, dict):
+         err("project", "missing", "project section is required")
+@@ -64,7 +64,9 @@ def _validate_project_section(data: dict, err: "Callable[[str, str, str], None]"
+         err("project.audit_level", "invalid_enum", f"audit_level must be one of {AUDIT_LEVELS}")
+ 
+ 
+-def _validate_feature(feat: object, at: str, seen_ids: set[int], err: "Callable[[str, str, str], None]") -> str | None:
++def _validate_feature(
++    feat: object, at: str, seen_ids: set[int], err: Callable[[str, str, str], None]
++) -> str | None:
+     """Validate one feature entry; return its status when the entry is an object."""
+     if not isinstance(feat, dict):
+         err(at, "invalid_type", "feature must be an object")
+@@ -91,7 +93,9 @@ def _validate_feature(feat: object, at: str, seen_ids: set[int], err: "Callable[
+     return status if isinstance(status, str) else None
+ 
+ 
+-def _require_done_approval(fname: object, fid: object, at: str, err: "Callable[[str, str, str], None]") -> None:
++def _require_done_approval(
++    fname: object, fid: object, at: str, err: Callable[[str, str, str], None]
++) -> None:
+     if not isinstance(fname, str):
+         return
+     approval = os.path.join("harness", "specs", fname, "APPROVAL")
+@@ -103,7 +107,7 @@ def _require_done_approval(fname: object, fid: object, at: str, err: "Callable[[
+         )
+ 
+ 
+-def _validate_features(data: dict, err: "Callable[[str, str, str], None]") -> None:
++def _validate_features(data: dict, err: Callable[[str, str, str], None]) -> None:
+     features = data.get("features")
+     if not isinstance(features, list):
+         err("features", "missing", "features array is required")
+@@ -144,7 +148,7 @@ def _validate_features(data: dict, err: "Callable[[str, str, str], None]") -> No
+         )
+ 
+ 
+-def _validate_document(data: object, err: "Callable[[str, str, str], None]") -> None:
++def _validate_document(data: object, err: Callable[[str, str, str], None]) -> None:
+     if not isinstance(data, dict):
+         err("", "invalid_type", "document must be an object")
+         return
+diff --git a/pyproject.toml b/pyproject.toml
+index 8b30d87..419b5dc 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -7,7 +7,9 @@ authors = [
+     { name = "Jordi Marsal", email = "jordi.marsal@gmail.com" }
+ ]
+ requires-python = ">=3.14"
+-dependencies = []
++dependencies = [
++    "mcp>=2.3,<3",
++]
+ 
+ [project.scripts]
+ debrief = "debrief:main"
+@@ -18,5 +20,21 @@ build-backend = "uv_build"
+ 
+ [dependency-groups]
+ dev = [
++    "mypy>=1.15",
+     "pytest>=9.2.0",
++    "ruff>=0.14",
+ ]
++
++[tool.ruff]
++line-length = 100
++target-version = "py314"
++# harness/tools are harness-owned scripts executed by the system python3 (<3.14),
++# so py314-only syntax ruff formats towards must never be applied to them.
++extend-exclude = ["harness/tools"]
++
++[tool.ruff.lint]
++select = ["E", "F", "W", "I", "UP", "B"]
++
++[tool.mypy]
++strict = true
++files = ["src", "tests"]
+diff --git a/src/debrief/__init__.py b/src/debrief/__init__.py
+index 3fbbf24..7608a96 100644
+--- a/src/debrief/__init__.py
++++ b/src/debrief/__init__.py
+@@ -1,2 +1,16 @@
+-def main() -> None:
+-    print("Hello from debrief!")
++"""debrief — answers agent questions from receipts; never writes (ADR-0001)."""
++
++from __future__ import annotations
++
++from typing import Any
++
++__all__ = ["main"]
++
++
++def __getattr__(name: str) -> Any:
++    # Lazy on purpose: `import debrief` (and so debrief.domain) must not pull in the mcp SDK.
++    if name == "main":
++        from debrief.mcp_server import main
++
++        return main
++    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

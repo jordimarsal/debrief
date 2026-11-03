@@ -1,0 +1,82 @@
+diff --git a/harness/progress/current.md b/harness/progress/current.md
+index 03cc683..b303e7f 100644
+--- a/harness/progress/current.md
++++ b/harness/progress/current.md
+@@ -3,40 +3,93 @@
+ > This file is cleared on session close and moved to `history.md`.
+ > Keep it updated in real time while you work — not at the end.
+ 
+-- **Feature in progress:** `debrief` (parent) — `pending`; next step is spec mode
++- **Feature in progress:** none — parent `debrief` is `done` (T4 closure batch landed)
+ - **Started:** 2026-11-02
+ - **Agent:** in-session (hybrid)
+ 
+ ## Plan
+ 
+-- Install the harness with the options that fit a solo Python MCP server — done.
+-- Make the pytest gate real (dev dependency + first smoke test) — done.
+-- Write the README (product rules + gates), `docs/architecture.md` (ports, slice map),
+-  project conventions, and the four founding ADRs — done.
+-- Register the parent feature `debrief` as `pending` — done.
+-- **Next session: spec mode** for the parent (EARS trio + slice map approval at the
+-  Spec Gate), then slice S1 `bench_query`.
++- ~~Install harness, gates, README, ADRs, register parent~~ — done (earlier session).
++- ~~Spec mode for the parent; approve slice map at the Spec Gate~~ — done.
++- ~~Implement S1/S2/S3 (T1–T3) with per-batch gates~~ — done.
++- **Next: session close** — append the history entry; a human reviewer walks C1–C8
++  (`harness/CHECKPOINTS.md`) and countersigns the Completion Gate in
++  `harness/specs/debrief/APPROVAL`.
+ 
+ ## Log
+ 
+-- Installed harness `v0.10.3-1-g271c75b`: `--tool=opencode --hybrid --gauntlet
+-  --architecture=hexagonal --modules=decision-memory,security-audit,vertical-slices,architecture-catalog
+-  --audit-level=standard`. All validations `[OK]`; Conventional Commits hook installed.
+-- Added `pytest` dev dependency (`uv add --dev pytest`) and `tests/test_package.py`
+-  (smoke: CLI entry point callable) so `harness/init.sh`'s test gate is real; added
+-  tool-cache dirs to `.gitignore`; set the real package description in `pyproject.toml`.
+-- Wrote `README.md`: the two ports, product rules, and the gate table (Spec Gate,
+-  batch gates, security audit standard, gauntlet G1–G4, Completion Gate with demo,
+-  session verify).
+-- Customized `docs/architecture.md` (ports, `Finding` domain, slice map pending the
+-  Spec Gate, v1 out-of-scope) and appended project conventions to `docs/conventions.md`.
+-- Recorded the four founding ADRs in `harness/decisions/` (never writes; two ports one
+-  finding; roles not registry; refuse incomparable rows).
+-- Registered the parent feature `debrief` (`pending`) in `harness/feature_list.json`;
+-  slices are NOT pre-registered — the map is approved at the parent's Spec Gate.
++- T4 closure batch for `debrief`: full gate battery green and captured; gauntlet G2/G3
++  round 1 REJECTED it with 4 hostile-input findings.
++- T4 fix round 1 for `debrief`: all four findings fixed (NUL paths -> `path_outside_root`;
++  artifact enumeration OSError -> `source_unparseable` incl. surfacing unreadable run
++  dirs; outcome enum validated at both adapter boundaries so a failed run can never
++  answer "every logged step passed"; nesting-bomb JSON / undecodable bytes ->
++  `source_unparseable`), each with parametrized regression tests (suite 32 -> 54).
++  Battery re-run green (`harness/logs/debrief/batch-5.log`, six gates exit=0);
++  install smoke and demos re-recorded (`install-smoke.log`, `demo.log` incl. hostile
++  probes); gauntlet re-ran from G1 -> round 2 REJECTED with 2 sibling findings at the
++  ggufbench score boundary (non-finite scores fabricating a proposal winner; huge-int
++  score crashing past the R1 contract).
++- T4 fix round 2 for `debrief`: both score-boundary findings fixed at the one spot the
++  findings named (`ggufbench_store.py::_map_row`: `math.isfinite` gate + `OverflowError`
++  -> `source_unparseable`), 8 regression rows (suite 54 -> 62); battery re-run green
++  (`harness/logs/debrief/batch-6.log`, six gates exit=0); install smoke and demos
++  re-recorded incl. the score-boundary probes (`install-smoke.log`, `demo.log`);
++  gauntlet re-ran from G1 -> **round 3 PASS** (final verdict, four PASS lines in
++  `harness/progress/gauntlet_debrief.md`; per-pass evidence
++  `harness/logs/debrief/gauntlet-g23.log`, round-2 + round-3 sections). Parent
++  `debrief` `done`.
++- Review fix round (round-1 CHANGES_REQUESTED): the three slice entries
++  (`debrief_bench_query`, `debrief_run_inspect`, `debrief_role_propose`, each
++  `part_of: "debrief"`, `status: "pending"`) were restored to
++  `harness/feature_list.json` per design.md's slice map and tasks.md T1's deliverable —
++  they had been dropped from the file even though T1/T4 records describe them as
++  present. Validator re-run: valid (4 features); init.sh re-run: `[OK]` (62 passed);
++  full battery re-run green; install smoke re-run (uv tool install into a temp tool
++  dir, JSON-RPC over the installed binary: initialize / tools/list / tools/call
++  bench.query -> 4 findings, error null); gauntlet G1 re-run PASS; check-traceability
++  re-run 11/11 PASS. The stale round-2-only `gauntlet-g23.log` was annotated with the
++  round-3 fresh-eyes pass (incl. a fresh `1e999` sibling probe) so the on-disk
++  per-pass evidence matches the round-3 verdict.
++- Gauntlet round 3 REJECTED the feature with 3 findings: [G2-1 MUST-FIX] nested
+122:    root = Path(os.environ.get(root_env, default_root)).resolve()
+144:        level=os.environ.get("DEBRIEF_LOG_LEVEL", "INFO"),

@@ -1,0 +1,372 @@
+# Gauntlet G2+G3 fresh-eyes pass — debrief, round 4 (after the round-3 fix batch)
+
+Scope: re-read every file this round touched, top to bottom —
+`src/debrief/adapters/ggufbench_store.py`, `src/debrief/use_cases.py`,
+`tests/test_bench.py`, `tests/test_propose.py` — plus the boundary callers
+(`src/debrief/mcp_server.py::_resolve_within`, `adapters/buildwright_log.py`),
+independent of the batch memory that wrote them.
+
+## Fixed findings re-verified through the public MCP path
+
+- [round-3 G2-1, nested symlink indirection] `bench.query {"path": "r1"}` with
+  `<root>/r1/results.json` → outside file (winning LEAKED-model row):
+  `source_unparseable`, findings `[]`, message "a run's results.json escapes the
+  ggufbench artifact root", no `LEAKED-model` anywhere in the response
+  (`harness/logs/debrief/demo.log`, "gauntlet round-3 findings" section).
+  `routing.propose` over the same artifact refuses with the same code; the leak
+  cannot reach the proposal ranking. Both access shapes (artifact-root scan and
+  the run dir requested directly) are regression-locked:
+  `tests/test_bench.py::test_symlinked_results_file_outside_the_root_refuses_the_scan[artifact_root_scan|run_dir_requested]`,
+  `test_bench_query_tool_refuses_a_symlink_escaping_below_the_requested_path`,
+  `tests/test_propose.py::test_symlink_escaping_the_bench_root_never_reaches_the_proposal[*]`.
+  Mechanism checked by reading the code, not just the probe: `_results_files`
+  resolves the store root once, and every candidate (`root / RESULTS_FILE` and
+  each `iterdir` entry) goes through `_contained_results`, which resolves and
+  requires `is_relative_to(root)` before `_read_run` is ever handed a path.
+- [round-3 G2-2, prefixed role token] step line `role=BW_ROLE_WORKER` →
+  `+ BW_ROLE_WORKER=llama-3.1-8b-instruct-q4_k_m`, no `BW_ROLE_BW_ROLE_`
+  anywhere in the answer (`demo.log`, last probe). Regression table covers the
+  canonical prefix, its lowercase form, and both bare spellings
+  (`tests/test_propose.py::test_role_tokens_carrying_the_env_prefix_still_render_a_pasteable_diff[*]`);
+  dedup now happens on the canonical name, so `worker` and `BW_ROLE_WORKER`
+  failures in one log collapse to a single proposal (improvement, not just a
+  cosmetic fix).
+
+## New-angle scan (tree-structure vectors beyond the reported probe)
+
+Residual probes run against the fixed store (all PASS, transient self-deleting
+probe, output in the session archive):
+
+1. symlink loop (`results.json` → itself) → `source_unparseable`, no crash
+   (resolve() breaks the loop, stat() raises ELOOP, findings() maps OSError).
+2. run *directory* symlink escaping the root (`<root>/r1` → outside dir with a
+   results file) → `source_unparseable` (the fix covers any nesting depth, not
+   only the one-level-down case the round-3 probe used).
+3. `results.json` symlink → directory inside the root → skipped as "no results
+   here" (`bench_source_missing` when nothing else exists), no crash, no
+   directory read.
+4. two-hop symlink chain fully inside the root (`results.json` → link → real)
+   → still read: the boundary refuses escapes, not symlinks
+   (also pinned by `tests/test_bench.py::test_symlinked_results_file_inside_the_root_is_still_read`).
+5. degenerate role token `BW_ROLE_` → renders text only
+   (`- BW_ROLE_=m-out` / `+ BW_ROLE_=m-keeper`), never double-prefixed, and the
+   answer still carries the "not applied" note — R2 holds for every token shape.
+
+## Defended findings (recorded per protocol, no action)
+
+1. TOCTOU window between `resolve()`/`is_relative_to()` and `read_text()` — a
+   local attacker able to swap files *under the evidence root between* the two
+   calls could redirect one read outside. Defended: identical window to the
+   already-accepted `_resolve_within` design (resolve-then-read at the adapter
+   boundary, rounds 1–3); the declared threat model is hostile artifact bytes /
+   structure present at query time, not a concurrent local filesystem writer —
+   a single-user, localhost, read-only evidence tool with no agent write path
+   (R2 tripwire). Closing it needs fd-based `openat2(RESOLVE_BENEATH)` /
+   `O_NOFOLLOW` plumbing, which is out of scope for the ordered one-spot fix
+   and adds platform-specific code to a stdio tool. Trade-off named: strict
+   path-boundary check at query time vs race-proof fds — chosen the former,
+   consistent with the codebase's stated A03 convention.
+2. Degenerate role token `BW_ROLE_` normalizes to an empty role and renders
+   `BW_ROLE_` as the env name. Defended: text-only output (R5/R6 intact — diff
+   lines still start `BW_ROLE_`), nothing applied, and the input itself
+   (`role=BW_ROLE_`) is malformed; widening the adapter to reject it would add
+   a validation rule for a shape no buildwright log can produce meaningfully.
+3. The `except OSError` branch inside `_contained_results` maps a resolve-time
+   OSError to the escape wording — slightly off-message for a non-escape I/O
+   error. Defended as effectively unreachable: CPython's `Path.resolve(strict=False)`
+   swallows per-component OSErrors, so unreadable components surface at the
+   `stat()` in `_is_regular_file` instead, which maps to the scan-failure
+   message ("could not be scanned"), matching rounds 1–2 behavior. The escape
+   message only fires on the real escape path (`is_relative_to` false).
+
+## Prior-round fixes re-checked (rounds 1–2)
+
+NUL/absolute/`..`/empty path args → `path_outside_root`; NaN/Infinity/
+-Infinity/`1e999`/huge-int scores → `source_unparseable` at the score boundary
+(no fabricated `evil-model` winner); outcome tokens outside {pass, fail} →
+`source_unparseable` in both adapters (no false "every logged step passed");
+nesting bombs and undecodable bytes → `source_unparseable`; unreadable dirs →
+structured error naming the file, never a silent skip. All re-verified over
+MCP stdio in `harness/logs/debrief/demo.log` (rounds 1–2 section) — unchanged
+by this round's diff. No write path exists in `src/debrief` (R2 tripwire test
+green; grep over the package clean).
+
+## G3 maintainability
+
+- Dependency direction unchanged: domain → errors; ports → domain/errors;
+  use_cases → domain/errors/ports; adapters → domain/errors; only mcp_server
+  imports `mcp`. No ggufbench/buildwright knowledge leaked (ADR-0002 holds).
+- The new code follows the conventions: one failure mode per named helper
+  (`_contained_results`), narrow typed excepts with why-comments, `from err`
+  chaining, no nested try/catch (findings() has two sequential excepts on one
+  try), no mutable defaults, docstrings state why (A03, evidence-tool refusal
+  direction). `_canonical_role` is a pure one-responsibility function; the
+  proposal text contract is untouched.
+- Tests state behavior in their names, parametrize reject tables, build
+  hostile trees in `tmp_path` (symlinks created at test time — no git-symlink
+  portability hazard in fixtures), skipif-root and restore modes in `finally`
+  where chmod is used, and run under mypy --strict.
+- Gates re-run green after the change: pytest 72 passed, ruff check +
+  format clean, mypy --strict clean (14 files), audit-security no HIGH
+  (`harness/logs/debrief/batch-7.log`).
+
+## Verdict
+
+G2: PASS — 2 fixed findings re-verified publicly + regression-locked, 3
+defended with rationale above, 5 residual probes PASS.
+G3: PASS — architecture, conventions, and test hygiene hold on the re-read.
+
+
+---
+
+# Gauntlet G2+G3 fresh-eyes pass — debrief, round 6 (after the round-5 fix batch)
+
+Scope: re-read every file this round touched, top to bottom —
+`src/debrief/adapters/ggufbench_store.py` (`_required_token`, `_required_line`,
+`_required_counts`, `_refuse_control_chars`), `src/debrief/adapters/buildwright_log.py`
+(`findings()` stat probe), `tests/test_bench.py`, `tests/test_propose.py`,
+`tests/test_run.py` — independent of the batch memory that wrote them.
+
+## Fixed findings re-verified through the public MCP path
+
+- [round-5 G2-1, artifact string-field forgery] every hostile-field vector now
+  refuses at the ggufbench boundary as `source_unparseable` and no forged
+  `- `/`+ ` line reaches any answer (`harness/logs/debrief/demo.log`, "gauntlet
+  round-5 findings" section): `model` with an embedded `+ BW_ROLE_WORKER=…`
+  line and `model` with an embedded `+ models.yaml: …` line both answer
+  "model is not a single-line whitespace-free token" with `proposal: ""`; a
+  `reason` with an embedded newline answers "reason contains control
+  characters". Regression-locked:
+  `tests/test_bench.py::test_bench_refuses_string_fields_that_could_forge_proposal_lines[*]`
+  (12 rows incl. graded-dimension and control-char vectors),
+  `test_bench_refuses_multiline_graded_dimension`,
+  `tests/test_propose.py::test_poisoned_bench_fields_never_reach_the_proposal_output[*]`
+  (5 end-to-end rows: the two gauntlet probe vectors, reason/artifact vectors,
+  and a Unicode-separator vector).
+- [round-5 G2-2, EACCES on an existing run log] an existing log behind an
+  unreadable parent now answers `source_unparseable` ("exists but cannot be
+  probed"), never `run_source_missing` — probe over MCP stdio in demo.log
+  (`run.inspect {"path": "locked/run-locked.log"}`) and regression-locked by
+  `tests/test_run.py::test_existing_run_log_behind_unreadable_parent_is_unparseable_not_missing`
+  (chmod 000 parent, skipif-root, mode restored in `finally`). The probe is
+  stat()-based like the bench side, so pathlib's swallowed-EACCES behavior
+  cannot mislabel the file as absent.
+
+## New-angle scan (found one finding, fixed in this batch)
+
+1. [G2-1 residual — FOUND and FIXED] the round-5 free-text rule refused only
+   `ord(ch) < 0x20 or == 0x7F`, but Unicode line separators (U+0085 NEL,
+   U+2028, U+2029) sit above that range and still split the value everywhere
+   Python splits text (`str.splitlines`): a poisoned `reason` of
+   `trusted-value<U+2029>+ BW_ROLE_WORKER=evil-model` passed validation and
+   would have rendered the forged diff line in `why bench:`. Empirically
+   confirmed against the pre-fix rule, then fixed in
+   `ggufbench_store.py::_required_line` — the single-line rule is now
+   `value.splitlines() != [value]` → `source_unparseable` ("is not a single
+   line"). Regression rows: `reason_forges_via_unicode_line_separator` (bench
+   table) and the `reason_forges_via_unicode_line_separator` end-to-end propose
+   row; probe over MCP stdio in demo.log (`poisoned-separator` →
+   `source_unparseable`, `proposal: ""`, no `- `/`+ ` line in the answer).
+2. Token fields (model/task/baseline/engine_build/graded dimension) were
+   hardened in the same spot: `\S+` already refuses every Unicode whitespace
+   including the line separators (probe p1: `model="a<U+2029>b"` → "not a
+   single-line whitespace-free token"), and `_refuse_control_chars` now also
+   refuses control characters that are `\S` (probe p2: `model="a<NUL>b"` →
+   "contains control characters") so a NUL cannot ride into a proposal or a
+   pasted role env.
+3. Run-side structure re-checked: step fields are `\S+`/`[^"]*` on one physical
+   line, so no run finding can carry a line break; the `task:` header value is
+   line-bounded by construction (`splitlines()` before mapping). No new gap.
+
+## Residual probes (all PASS; transient probe, output embedded below)
+
+1. U+2029 in a token → `source_unparseable` "not a single-line whitespace-free
+   token"; no forged line in the answer.
+2. NUL in a token → `source_unparseable` "contains control characters".
+3. U+0085 in `reason` → `source_unparseable` "is not a single line".
+4. whitespace-only `reason` → accepted as findings (free text may be blank-ish;
+   renders inside a `why …: (…) — …` line it cannot break out of).
+5. whitespace-only `model` → token refusal.
+6. graded dimension `a:b` → accepted; the rendered `signature:` key is
+   ambiguous-looking (`a:b:40@…`) but comparability compares the
+   `TaskSignature` dataclasses, never the key, and two genuinely different
+   gradings still refuse as `incomparable_rows` (R7 tests) — rendering-only.
+7. negative finite score → accepted as findings (ggufbench's `pass` verdict is
+   authoritative, ADR-0004 comparability is not re-derived from the score;
+   ranking prefers higher scores, and NaN/±Inf/overflow refuse at the score
+   boundary from round 2).
+8. `run.inspect` pointed at a directory → `run_source_missing` (there is no run
+   log at that path; same "non-regular means not-here" direction the bench side
+   established for a stray `README.md` under the artifact root).
+9. bench_path pointed at a plain `results.json` file → `bench_source_missing`
+   (the tool contract promises a run directory or the artifact root).
+10. positive control: the clean cohort still renders the pasteable
+    `+ BW_ROLE_WORKER=llama-3.1-8b-instruct-q4_k_m` diff unchanged.
+
+## Defended findings (recorded per protocol, no action)
+
+1. PEP 758 unparenthesized `except FileNotFoundError, NotADirectoryError:`
+   sits next to parenthesized multi-excepts in the same files (carried G3 nit).
+   Defended: valid on the py314 target and `ruff format` normalizes towards the
+   unparenthesized shape — hand-parenthesizing would fight the formatter (the
+   round-0 scaffold already lost one `harness/tools` file to exactly that).
+   The formatter is the canon; homogeneity follows it, not the reverse.
+2. Set-but-empty `DEBRIEF_BENCH_ROOT`/`DEBRIEF_RUN_ROOT` degrades to the
+   server cwd (carried G3 nit from round 5). Defended: unchanged this round
+   (not part of the ordered fix), operator misconfiguration, and an empty root
+   still cannot read outside itself — `_resolve_within` keeps every requested
+   path relative to whatever root resolves. Candidate for a future batch.
+3. Signature-key ambiguity via `:`/`@` inside a graded dimension name
+   (probe 6): rendering-only; comparability never reads the key.
+
+## G3 maintainability
+
+- Dependency direction unchanged and re-checked by imports: domain → errors;
+  ports → domain/errors; use_cases → domain/errors/ports; adapters →
+  domain/errors; only mcp_server imports `mcp`; ProposeRole is the only
+  dual-port composer (ADR-0002); no write path anywhere (R2 tripwire test
+  green, grep over `src/debrief` clean).
+- The round-5 code follows the conventions: validation lives in named
+  single-failure-mode helpers (`_required_token`, `_required_line`,
+  `_refuse_control_chars`, `_required_counts`), why-docstrings state the
+  forgery/diagnosability rationale, no nested try/catch added, frozen
+  dataclasses unchanged.
+- Tests: parametrized reject tables, hostile trees built in tmp_path at
+  runtime, chmod tests skipif-root and restore in `finally`, all under mypy
+  --strict; suite 72 → 91.
+- Gates re-run green after the fix (`harness/logs/debrief/batch-8.log`):
+  init.sh [OK], pytest 91 passed, ruff check clean, ruff format --check clean
+  (45 files), mypy --strict clean (14 files), audit-security no HIGH findings;
+  install smoke re-run (`harness/logs/debrief/install-smoke.log`, all
+  `[exit=0]`); demo transcript re-recorded (`demo.log`, "demo assertions
+  PASS").
+
+## Verdict
+
+G2: PASS — both round-5 findings re-verified publicly + regression-locked, the
+one fresh finding (Unicode line separators) fixed in this batch with its own
+regression rows and MCP probe, 10 residual probes PASS, 3 defended with named
+trade-offs.
+G3: PASS — architecture, conventions, and test hygiene hold on the re-read.
+
+# Gauntlet G2+G3 fresh-eyes pass — debrief, round 8 (after the round-7 fix batch)
+
+Scope: the round-7 findings landed as a human fix order (G2-1 MUST-FIX: refuse
+zero-step run logs at the adapter boundary; optionally cross-check the
+`result:`/`failed_steps` header). Re-read top to bottom, independent of the
+batch memory that wrote them:
+`src/debrief/adapters/buildwright_log.py` (whole file — `_map_log`, the new
+`_Step` record, `_parse_step`, `_finding`, `_optional_header`,
+`_check_result_header`, `_declared_failed_steps`), the regression rows in
+`tests/test_run.py` and `tests/test_propose.py`, and the boundary callers
+(`src/debrief/use_cases.py::InspectRun/.ProposeRole`, `mcp_server.py`).
+
+## Fix verification (round-7 G2-1, ordered)
+
+- `_map_log` raises `_Unparseable` when the log has a `task:` header but zero
+  `step:` lines → `source_unparseable` at the adapter boundary; a headers-only
+  log can no longer answer `[]` as a structured success, and ProposeRole can no
+  longer answer "no proposal: every logged step passed" for a step-stripped log
+  whose own `result: fail failed_steps=01` header declares a failure.
+  Regression rows: `tests/test_run.py::test_headers_only_run_log_refuses_as_unparseable`,
+  `tests/test_propose.py::test_propose_does_not_claim_all_passed_for_a_step_stripped_log`.
+  Re-probed over MCP stdio (`harness/logs/debrief/demo.log`, "gauntlet round-7
+  findings" section): `run.inspect {"path": "headers-only.log"}` →
+  `source_unparseable` ("no step: lines"); `routing.propose` over the same log
+  → the structured error, the all-passed claim absent from the response.
+
+## Fix verification (round-7 G2-2 family, optional cross-check — implemented)
+
+- `_check_result_header` cross-checks the `result:` header against the logged
+  step outcomes once every step line has parsed: `result: pass` over a logged
+  failure refuses; a `failed_steps` list not matching the logged failing step
+  ordinals refuses; a fail claim with no logged failing step refuses; a failure
+  without a `failed_steps` list refuses; an empty list, a malformed header and
+  an outcome token outside the pass/fail enum refuse. The zero-step refusal
+  fires first (ordered fix semantics preserved). Regression rows:
+  `tests/test_run.py::test_result_header_contradicting_the_logged_steps_refuses_the_log[*]`
+  (7 reject cases) + `test_result_header_agreeing_with_the_logged_steps_still_parses` +
+  `test_failed_steps_without_zero_padding_still_matches_the_logged_step`;
+  `tests/test_propose.py::test_propose_does_not_claim_all_passed_for_a_log_whose_result_header_lies[*]`.
+- Ordinals compare zero-padding-insensitively (`02` == `2` == `0002`), comma
+  lists match multi-failure logs, and a missing `result:` header still parses
+  (the header is optional; producers older than the failed_steps convention omit it).
+
+## Residual probes (19, all PASS)
+
+consistent fail header parses; unpadded/zero-padded ordinals match; duplicate
+ordinals match; `02,04` matches a two-failure log; no result header parses;
+`result: pass failed_steps=none` over an all-pass log parses; pass header over
+a logged failure refuses; `failed_steps=01` naming a step that passed refuses;
+`failed_steps=02,03` listing one failure too many refuses; fail without a
+`failed_steps` list refuses; fail over an all-pass log refuses; empty
+`failed_steps` refuses; `result: partial` (enum) refuses; space-separated
+ordinal list refuses (malformed header); trailing prose after the header
+refuses; headers-only log refuses before the header check; a second
+`result:` header is ignored (first wins, as for every header key); a pass
+header carrying an unrelated `failed_steps=99` token parses.
+
+## G2 findings
+
+- [G2-1 FIXED] zero-step run log → `[]` structured success / all-passed claim
+  (round-7 order) — refused at the adapter boundary, regression-locked (above).
+- [G2-2 FIXED, optional part implemented] `result:`/`failed_steps` header
+  ignored — now cross-checked against the logged step outcomes, both refusal
+  directions covered (header-passes-but-step-failed; header-failed-but-no-step)
+  and regression-locked (above).
+- [G2 DEFENDED: pass header carrying a `failed_steps` token parses] On a
+  passing run the token is meaningless producer metadata; refusing it risks
+  false refusals of legitimate logs (`failed_steps=none`), and the fabrication
+  direction — a pass claim over a logged failure — refuses. Named trade-off:
+  tolerance on meaningless metadata, strictness on contradictions.
+- [G2 DEFENDED: duplicate `result:` headers — first one wins] Consistent with
+  `_header`'s first-wins semantics for every header key (`task:`, `run:` …);
+  a duplicated header is producer noise, not a contradiction an attacker can
+  aim (the *checked* first header still must agree with the steps).
+- [G2 DEFENDED: fail header without a `failed_steps` list refuses — a false
+  refusal risk if real producers omit it] The adapter owns the format
+  (module docstring declares the `result: <outcome> failed_steps=<list>`
+  shape); a failure claim that cannot be cross-checked is refused rather than
+  trusted, which is the same direction as the outcome-enum boundary. Trade-off
+  named: strictness over leniency for an unverifiable failure claim.
+- Carried defenses re-checked and unchanged: invalid DEBRIEF_LOG_LEVEL
+  (fail-fast operator error), unbounded read_text (bounded by the producer,
+  operator-configured local root), TOCTOU window (needs openat2, out of scope),
+  TaskSignature.key render ambiguity (display-only, comparability uses the
+  frozen dataclass).
+
+## G3 maintainability
+
+- Dependency direction unchanged and re-checked by imports: domain → errors;
+  ports → domain/errors; use_cases → domain/errors/ports; adapters →
+  domain/errors; only mcp_server imports `mcp`; no write path anywhere (R2
+  tripwire `tests/test_bench.py::test_no_debrief_module_contains_a_write_path`
+  green over `src/debrief` including the round-7 diff).
+- The round-7 code follows the conventions: the new header knowledge lives in
+  named single-failure-mode helpers (`_optional_header`, `_check_result_header`,
+  `_declared_failed_steps`) inside the adapter that owns the log format; the
+  step shape became a frozen `_Step` dataclass so the header cross-check can
+  name failing steps without leaking the ordinal into the shared `Finding`
+  (ADR-0002: neither port fills the other's fields); why-docstrings state the
+  fabrication rationale; no nested try/catch added.
+- Tests: parametrized reject tables over synthetic logs in tmp_path (no mocks),
+  positive controls for the tolerance rules, all under mypy --strict; suite
+  91 → 104 (+13: 2 ordered G2-1 rows landed with the fix, 11 round-7 G2-2 rows).
+- Gates re-run green after the fix (`harness/logs/debrief/batch-9.log`, six
+  gates, every `[exit=0]`): init.sh `[OK]` (feature_list valid — 4 features),
+  pytest 104 passed, ruff check clean, ruff format --check clean (45 files),
+  mypy --strict clean (14 files), audit-security no HIGH findings.
+- Install smoke re-run over the *installed* binary
+  (`harness/logs/debrief/install-smoke.log`, all `[exit=0]`): uv sync, uv tool
+  install into a temp tool dir, initialize / tools/list / bench.query → 4
+  findings, and the round-7 probe `run.inspect` over a headers-only log →
+  `source_unparseable` ("no step: lines") from the installed `debrief`.
+
+## Verdict
+
+G2: PASS — the ordered MUST-FIX and the same-family header cross-check are
+implemented, probe-verified over MCP stdio and regression-locked; 19 residual
+probes PASS; 3 findings defended with named trade-offs; carried defenses
+re-checked.
+G3: PASS — architecture, conventions, and test hygiene hold on the re-read;
+the fix stayed inside the adapter that owns the run-log format.

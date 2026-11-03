@@ -78,9 +78,7 @@ def collect_tables(
     if not progress.is_dir():
         return merged, statuses
     for impl in sorted(progress.glob("impl_*.md")):
-        _merge_impl_table(
-            impl.read_text(encoding="utf-8"), impl.name, feature, merged, statuses
-        )
+        _merge_impl_table(impl.read_text(encoding="utf-8"), impl.name, feature, merged, statuses)
     return merged, statuses
 
 
@@ -127,7 +125,7 @@ def _py_tests_define(tests_dir: Path, identifier: str) -> bool:
     return False
 
 
-def _js_tests_mention(tests_dir: Path, pat: "re.Pattern[str]") -> bool:
+def _js_tests_mention(tests_dir: Path, pat: re.Pattern[str]) -> bool:
     for tf in tests_dir.rglob("*.js"):
         try:
             if pat.search(tf.read_text(encoding="utf-8", errors="replace")):
@@ -221,7 +219,7 @@ def _usage() -> str:
     return "usage: check-traceability.py --all | --feature NAME [--json] [--help] [root]"
 
 
-def parse_args(argv: list[str]) -> "tuple[bool, bool, str | None, Path] | int":
+def parse_args(argv: list[str]) -> tuple[bool, bool, str | None, Path] | int:
     """Parse CLI flags; return (as_json, all_features, feature, root) or exit code 2."""
     if "--help" in argv or "-h" in argv:
         print(_usage())
@@ -285,9 +283,7 @@ def _validate_root(root: Path) -> int:
     return 2
 
 
-def _feature_names(
-    root: Path, all_features: bool, feature: str | None
-) -> "list[str] | None":
+def _feature_names(root: Path, all_features: bool, feature: str | None) -> list[str] | None:
     """Features to check, or None when the request is unusable (error printed)."""
     if all_features:
         names = _selected_features(root, all_features, feature)
@@ -302,7 +298,7 @@ def _feature_names(
     return [feature]
 
 
-def _emit(results: "list[dict]", verdict: str, as_json: bool) -> None:
+def _emit(results: list[dict], verdict: str, as_json: bool) -> None:
     if as_json:
         print(
             json.dumps(

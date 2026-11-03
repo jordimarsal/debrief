@@ -1,0 +1,7 @@
+buildwright run log
+run: r-2026-11-03T10-00Z
+engine_build: llama.cpp-b4937
+task: regex-extract
+roles: BW_ROLE_WORKER=phi-3.5-mini-instruct-q4_k_m
+step: 01 role=worker model=phi-3.5-mini-instruct-q4_k_m outcome=pass reason="extract matched every anchor and group" evidence=r-2026-11-03T10-00Z/worker.patch
+result: pass

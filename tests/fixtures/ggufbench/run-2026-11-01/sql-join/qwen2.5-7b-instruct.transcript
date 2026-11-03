@@ -1,0 +1,3 @@
+ggufbench transcript — qwen2.5-7b-instruct-q4_k_m on sql-join (run-2026-11-01)
+prompt 1..5: join query graded against b4937-graded-baseline
+result: fail, score 0.52 (syntax 20/20, joins 40/40, limits 4/10 — limit dimension below pass mark)

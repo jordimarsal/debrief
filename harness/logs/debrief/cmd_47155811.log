@@ -1,0 +1,150 @@
+diff --git a/harness/feature_list.json b/harness/feature_list.json
+index 98b529a..3c033e9 100644
+--- a/harness/feature_list.json
++++ b/harness/feature_list.json
+@@ -27,7 +27,48 @@
+         "harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security and the gauntlet are green before each slice's Completion Gate",
+         "The final system is installable (uv sync / uv tool install) and each slice has a demo note in its approval record"
+       ],
+-      "status": "in_progress"
++      "status": "done"
++    },
++    {
++      "id": 2,
++      "name": "debrief_bench_query",
++      "title": "debrief_bench_query — agent asks what ggufbench measured, answered from real artifacts",
++      "description": "S1 of debrief (walking skeleton): the bench.query MCP tool answers from ggufbench artifacts only (R3), returning findings or a structured error (R1) and never writing (R2). Gated inside the parent as task T1; demo note in harness/specs/debrief/APPROVAL.",
++      "part_of": "debrief",
++      "acceptance": [
++        "Tool calls return findings or a structured error",
++        "No file writes while serving",
++        "Bench findings come only from ggufbench artifacts"
++      ],
++      "status": "pending"
++    },
++    {
++      "id": 3,
++      "name": "debrief_run_inspect",
++      "title": "debrief_run_inspect — agent asks where a run broke, answered from one run log",
++      "description": "S2 of debrief: the run.inspect MCP tool answers from a single buildwright run log only (R4), returning findings or a structured error (R1) and never writing (R2). Gated inside the parent as task T2; demo note in harness/specs/debrief/APPROVAL.",
++      "part_of": "debrief",
++      "acceptance": [
++        "Tool calls return findings or a structured error",
++        "No file writes while serving",
++        "Run findings come only from a buildwright run log"
++      ],
++      "status": "pending"
++    },
++    {
++      "id": 4,
++      "name": "debrief_role_propose",
++      "title": "debrief_role_propose — a BW_ROLE_* proposal citing both ports, returned as text",
++      "description": "S3 of debrief: routing.propose composes both ports' findings into a BW_ROLE_* diff as text (R5), targeting roles and never models.yaml (R6), refusing incomparable rows instead of averaging them (R7). Gated inside the parent as task T3; its Completion Gate demo note in harness/specs/debrief/APPROVAL is the parent's R9 evidence.",
++      "part_of": "debrief",
++      "acceptance": [
++        "Tool calls return findings or a structured error",
++        "No file writes while serving",
++        "Role proposal is a BW_ROLE_* diff as text from both ports' findings",
++        "Proposals target BW_ROLE_* roles, never models.yaml",
++        "Incomparable rows -> structured error, never averaged"
++      ],
++      "status": "pending"
+     }
+   ]
+ }
+diff --git a/harness/tools/check-traceability.py b/harness/tools/check-traceability.py
+index 514370c..b507c9f 100755
+--- a/harness/tools/check-traceability.py
++++ b/harness/tools/check-traceability.py
+@@ -78,9 +78,7 @@ def collect_tables(
+     if not progress.is_dir():
+         return merged, statuses
+     for impl in sorted(progress.glob("impl_*.md")):
+-        _merge_impl_table(
+-            impl.read_text(encoding="utf-8"), impl.name, feature, merged, statuses
+-        )
++        _merge_impl_table(impl.read_text(encoding="utf-8"), impl.name, feature, merged, statuses)
+     return merged, statuses
+ 
+ 
+@@ -127,7 +125,7 @@ def _py_tests_define(tests_dir: Path, identifier: str) -> bool:
+     return False
+ 
+ 
+-def _js_tests_mention(tests_dir: Path, pat: "re.Pattern[str]") -> bool:
++def _js_tests_mention(tests_dir: Path, pat: re.Pattern[str]) -> bool:
+     for tf in tests_dir.rglob("*.js"):
+         try:
+             if pat.search(tf.read_text(encoding="utf-8", errors="replace")):
+@@ -221,7 +219,7 @@ def _usage() -> str:
+     return "usage: check-traceability.py --all | --feature NAME [--json] [--help] [root]"
+ 
+ 
+-def parse_args(argv: list[str]) -> "tuple[bool, bool, str | None, Path] | int":
++def parse_args(argv: list[str]) -> tuple[bool, bool, str | None, Path] | int:
+     """Parse CLI flags; return (as_json, all_features, feature, root) or exit code 2."""
+     if "--help" in argv or "-h" in argv:
+         print(_usage())
+@@ -285,9 +283,7 @@ def _validate_root(root: Path) -> int:
+     return 2
+ 
+ 
+-def _feature_names(
+-    root: Path, all_features: bool, feature: str | None
+-) -> "list[str] | None":
++def _feature_names(root: Path, all_features: bool, feature: str | None) -> list[str] | None:
+     """Features to check, or None when the request is unusable (error printed)."""
+     if all_features:
+         names = _selected_features(root, all_features, feature)
+@@ -302,7 +298,7 @@ def _feature_names(
+     return [feature]
+ 
+ 
+-def _emit(results: "list[dict]", verdict: str, as_json: bool) -> None:
++def _emit(results: list[dict], verdict: str, as_json: bool) -> None:
+     if as_json:
+         print(
+             json.dumps(
+diff --git a/harness/tools/validate-feature-list.py b/harness/tools/validate-feature-list.py
+index 722fc5c..fb2ec37 100755
+--- a/harness/tools/validate-feature-list.py
++++ b/harness/tools/validate-feature-list.py
+@@ -22,7 +22,7 @@ AUDIT_LEVELS = ("basic", "standard", "strict")
+ NAME_RE = re.compile(r"^[a-z0-9_]+$")
+ 
+ 
+-def parse_args(argv: list[str]) -> "tuple[bool, str] | int":
++def parse_args(argv: list[str]) -> tuple[bool, str] | int:
+     """Parse CLI flags; return (as_json, path) or exit code 2."""
+     as_json = False
+     path: str | None = None
+@@ -46,7 +46,7 @@ def parse_args(argv: list[str]) -> "tuple[bool, str] | int":
+     return as_json, path
+ 
+ 
+-def _validate_project_section(data: dict, err: "Callable[[str, str, str], None]") -> None:
++def _validate_project_section(data: dict, err: Callable[[str, str, str], None]) -> None:
+     project = data.get("project")
+     if not isinstance(project, dict):
+         err("project", "missing", "project section is required")
+@@ -64,7 +64,9 @@ def _validate_project_section(data: dict, err: "Callable[[str, str, str], None]"
+         err("project.audit_level", "invalid_enum", f"audit_level must be one of {AUDIT_LEVELS}")
+ 
+ 
+-def _validate_feature(feat: object, at: str, seen_ids: set[int], err: "Callable[[str, str, str], None]") -> str | None:
++def _validate_feature(
++    feat: object, at: str, seen_ids: set[int], err: Callable[[str, str, str], None]
++) -> str | None:
+     """Validate one feature entry; return its status when the entry is an object."""
+     if not isinstance(feat, dict):
+         err(at, "invalid_type", "feature must be an object")
+@@ -91,7 +93,9 @@ def _validate_feature(feat: object, at: str, seen_ids: set[int], err: "Callable[
+     return status if isinstance(status, str) else None
+ 
+ 
+-def _require_done_approval(fname: object, fid: object, at: str, err: "Callable[[str, str, str], None]") -> None:
++def _require_done_approval(
++    fname: object, fid: object, at: str, err: Callable[[str, str, str], None]
++) -> None:
+     if not isinstance(fname, str):
+         return

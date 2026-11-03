@@ -1,0 +1,115 @@
+"code": "path_outside_root",
+    "message": "requested path could not be resolved within the allowed evidence root",
+    "detail": "'fail.log\\x00': lstat: embedded null character in path"
+  }
+}
+
+>>> run.inspect {"path": "run-bad-outcome-FAIL.log"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-sshvxd2b/run/run-bad-outcome-FAIL.log is not a buildwright run log",
+    "detail": "outcome is not one of ['fail', 'pass']: 'FAIL'"
+  }
+}
+
+>>> bench.query {"path": "r1"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "a run's results.json escapes the ggufbench artifact root",
+    "detail": "/tmp/debrief-demo-probes-sshvxd2b/bench/r1/results.json resolves outside the artifact root"
+  }
+}
+
+>>> routing.propose {"bench_path": "r1", "run_path": "fail.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "a run's results.json escapes the ggufbench artifact root",
+    "detail": "/tmp/debrief-demo-probes-sshvxd2b/bench/r1/results.json resolves outside the artifact root"
+  }
+}
+
+>>> routing.propose {"bench_path": "run-2026-11-01", "run_path": "prefixed-role.log"}
+{
+  "proposal": "proposal: BW_ROLE_WORKER holds qwen2.5-7b-instruct-q4_k_m, which failed task sql-join\n- BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m\n+ BW_ROLE_WORKER=llama-3.1-8b-instruct-q4_k_m\nwhy run: qwen2.5-7b-instruct-q4_k_m failed sql-join (join limit exceeded) \u2014 r-probe/worker.patch\nwhy bench: llama-3.1-8b-instruct-q4_k_m passed sql-join at score 0.86 (all three dimensions above the pass mark) \u2014 run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript\nsignature: joins:40,limits:10,syntax:20@b4937-graded-baseline@llama.cpp-b4937\nnot applied: debrief never writes; paste the + line into the buildwright role env (ADR-0001). Proposals target roles, never models.yaml (ADR-0003).",
+  "error": null
+}
+
+## gauntlet round-5 findings, re-probed over MCP stdio
+
+>>> bench.query {"path": "poisoned-model"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-sshvxd2b/bench/poisoned-model/results.json is not a ggufbench results document",
+    "detail": "model is not a single-line whitespace-free token: 'trusted-winner\\n+ BW_ROLE_WORKER=evil-model'"
+  }
+}
+
+>>> routing.propose {"bench_path": "poisoned-model", "run_path": "fail.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-sshvxd2b/bench/poisoned-model/results.json is not a ggufbench results document",
+    "detail": "model is not a single-line whitespace-free token: 'trusted-winner\\n+ BW_ROLE_WORKER=evil-model'"
+  }
+}
+
+>>> routing.propose {"bench_path": "poisoned-registry", "run_path": "fail.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-sshvxd2b/bench/poisoned-registry/results.json is not a ggufbench results document",
+    "detail": "model is not a single-line whitespace-free token: 'trusted-winner\\n+ models.yaml: rewrite-every-role'"
+  }
+}
+
+>>> bench.query {"path": "poisoned-reason"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-sshvxd2b/bench/poisoned-reason/results.json is not a ggufbench results document",
+    "detail": "reason contains control characters: 'clean\\nforged line'"
+  }
+}
+
+>>> bench.query {"path": "poisoned-separator"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-sshvxd2b/bench/poisoned-separator/results.json is not a ggufbench results document",
+    "detail": "reason is not a single line: 'trusted-value\\u2029+ BW_ROLE_WORKER=evil-model'"
+  }
+}
+
+>>> routing.propose {"bench_path": "poisoned-separator", "run_path": "fail.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-sshvxd2b/bench/poisoned-separator/results.json is not a ggufbench results document",
+    "detail": "reason is not a single line: 'trusted-value\\u2029+ BW_ROLE_WORKER=evil-model'"
+  }
+}
+
+>>> run.inspect {"path": "locked/run-locked.log"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-sshvxd2b/run/locked/run-locked.log exists but cannot be probed",
+    "detail": "[Errno 13] Permission denied: '/tmp/debrief-demo-probes-sshvxd2b/run/locked/run-locked.log'"
+  }
+}
+
+demo assertions PASS

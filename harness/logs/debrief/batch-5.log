@@ -1,0 +1,67 @@
+$ bash harness/init.sh
+── 1. Checking harness files ──────────────────────────
+[0;32m[OK][0m    Exists AGENTS.md
+[0;32m[OK][0m    Exists .claude/ or .opencode/
+[0;32m[OK][0m    Exists harness/CHECKPOINTS.md
+[0;32m[OK][0m    Exists harness/feature_list.json
+[0;32m[OK][0m    Exists harness/progress/current.md
+[0;32m[OK][0m    Exists docs/architecture.md
+[0;32m[OK][0m    Exists docs/conventions.md
+[0;32m[OK][0m    Exists docs/verification.md
+[0;32m[OK][0m    Exists docs/specs.md
+[0;32m[OK][0m    Exists harness/specs/
+
+── 2. Validating harness/feature_list.json ────────────
+[OK]    harness/feature_list.json valid (4 features)
+
+── 3. Running tests ──────────────────────────────────
+Running: uv run pytest tests 2>&1
+============================= test session starts ==============================
+platform linux -- Python 3.14.7, pytest-9.2.0, pluggy-1.7.0
+rootdir: /home/jordi/works/debrief/.buildwright/worktrees/debrief
+configfile: pyproject.toml
+plugins: anyio-4.16.0
+collected 54 items
+
+tests/test_bench.py .......................                              [ 42%]
+tests/test_package.py .                                                  [ 44%]
+tests/test_propose.py ...............                                    [ 72%]
+tests/test_quality_gates.py .                                            [ 74%]
+tests/test_run.py ..............                                         [100%]
+
+============================== 54 passed in 0.35s ==============================
+[0;32m[OK][0m    All tests pass
+
+── 4. Summary ────────────────────────────────────────
+[0;32m[OK][0m    Environment ready. You can start working.
+[exit=0]
+
+$ uv run pytest tests
+… (full run above in harness/init.sh block) …
+tests/test_quality_gates.py .                                            [ 74%]
+tests/test_run.py ..............                                         [100%]
+
+============================== 54 passed in 0.36s ==============================
+[exit=0]
+
+$ uv run ruff check .
+All checks passed!
+[exit=0]
+
+$ uv run ruff format --check .
+45 files already formatted
+[exit=0]
+
+$ uv run mypy --strict
+Success: no issues found in 14 source files
+[exit=0]
+
+$ bash harness/tools/audit-security.sh
+# Security Audit Report (stack: python)
+
+## SAST: bandit
+… (bandit LOW noise elided here; full scan in git history of batch-4.log; summary below)
+>> bandit findings: LOW only (B101 asserts in tests, B105 'pass' domain constant)
+>> pip-audit: SKIPPED (not installed)
+VERDICT: no HIGH severity findings reported by automated tools.
+[exit=0]

@@ -1,0 +1,86 @@
+nch_query_tool_refuses_a_symlink_escaping_below_the_requested_path` (the
+  gauntlet's exact public-path probe: `bench_query("r1")`),
+  `test_symlinked_results_file_inside_the_root_is_still_read` (positive control: the
+  boundary refuses escapes, not symlinks), and
+  `tests/test_propose.py::test_symlink_escaping_the_bench_root_never_reaches_the_proposal[artifact_root_scan|run_dir_requested]`
+  (the leak cannot reach the proposal ranking through `routing.propose`).
+- [G2-2 SHOULD-FIX prefixed role token] `src/debrief/use_cases.py`: new
+  `_canonical_role()` — `role.upper().removeprefix("BW_ROLE_")` — applied in
+  `_propose` before dedup and rendering, so `role=BW_ROLE_WORKER` (and its lowercase
+  form) now yield the canonical `+ BW_ROLE_WORKER=…` diff instead of
+  `BW_ROLE_BW_ROLE_WORKER`; dedup also happens on the canonical name, so a log
+  mixing `worker` and `BW_ROLE_WORKER` collapses to one proposal.
+  Regression table: `test_role_tokens_carrying_the_env_prefix_still_render_a_pasteable_diff`
+  [bare_lowercase|bare_uppercase|prefixed_as_written_in_the_roles_header|prefixed_lowercase],
+  each asserting the normalized `+ BW_ROLE_WORKER=llama-3.1-8b-instruct-q4_k_m` line
+  and the absence of `BW_ROLE_BW_ROLE_`.
+- [G2-3 DEFENDED] no action required, as recorded in the round-3 verdict; its
+  residuals were re-checked this round and all prior-round fixes re-verified through
+  the public MCP path.
+- Both fixes probe-verified through the public MCP path (transient self-deleting
+  probe, "PROBE PASS"): `bench.query {"path": "r1"}` over the escaping tree →
+  `source_unparseable`, findings `[]`, no `LEAKED-model` anywhere;
+  `routing.propose` over the same artifact → the structured error, proposal `""`;
+  prefixed-role propose → normalized diff only.
+- Fresh-eyes G2+G3 pass (`harness/logs/debrief/gauntlet-g23.log`): fixed findings
+  re-verified publicly + regression-locked; 5 new residual probes all PASS —
+  symlink loop (structured error, no crash), escaping run-*directory* symlink
+  (the fix covers any depth, not only one level down), results.json symlink to a
+  directory inside the root (skipped, no crash), contained two-hop symlink chain
+  (still read), degenerate role token `BW_ROLE_` (text-only, never double-prefixed,
+  "not applied" intact); 3 findings defended with named trade-offs (TOCTOU window
+  identical to the accepted `_resolve_within` design and outside the declared
+  single-user threat model — closing it needs `openat2(RESOLVE_BENEATH)`, out of
+  scope for the ordered one-spot fix; degenerate `BW_ROLE_` token is text-only
+  output; the resolve-OSError escape wording is effectively unreachable because
+  non-strict `Path.resolve` swallows component OSErrors).
+- Gates re-run end-to-end after the fix and captured verbatim by a transient
+  self-relocating runner (moved itself to /tmp before any scan, so ruff/bandit
+  never see it) into `harness/logs/debrief/batch-7.log` — six gates, every
+  `[exit=0]`: init.sh `[OK]` + 72 passed (was 62; +10 round-3 regression rows),
+  ruff check, ruff format --check (45 files), mypy --strict (14 files),
+  audit-security (no HIGH; the LOW-only bandit noise elided exactly like
+  batch-4/5/6, verdict line verbatim). A first capture pass had the runner's
+  bandit-elision transform unapplied; it was corrected and the battery re-captured
+  clean.
+- Install smoke re-run after the code change (`harness/logs/debrief/install-smoke.log`):
+  `uv sync` exit 0; `uv tool install .` rebuilt `debrief==0.1.0` into a temp tool
+  dir; raw JSON-RPC over the installed binary: initialize / tools/list /
+  tools/call bench.query → 4 findings, `error: null`.
+- Demo transcript re-recorded with the fixed server (`harness/logs/debrief/demo.log`,
+  "demo assertions PASS"): S1/S2/S3 + R7 refusal unchanged in content; rounds-1/2
+  hostile section unchanged; new "gauntlet round-3 findings" section appends the
+  symlink-escape bench/propose refusals and the normalized prefixed-role diff.
+- `python3 harness/tools/check-traceability.py --feature debrief` re-run → 11/11,
+  VERDICT PASS, saved verbatim to `harness/specs/debrief/traceability.txt`;
+  traceability rows R8–R11 updated to the round-4 evidence; APPROVAL Completion Gate
+  section refreshed (round-3 findings named, 72 tests, batch-7/smoke/demo/gauntlet
+  logs, round-4 PASS).
+- Gauntlet re-run from G1: G1 PASS (`harness/logs/debrief/gauntlet-g1.log`); G2+G3
+  PASS (log above); report `harness/progress/gauntlet_debrief.md` rewritten with the
+  round history (1–3 REJECT, 4 PASS), four PASS lines and the findings ledger.
+  `harness/progress/current.md` log extended with the round-3 REJECT → round-4 fix →
+  round-4 PASS chain.
+- Closure state: T4 stays `[x]` in tasks.md; parent `debrief` stays `done` in
+  `harness/feature_list.json` (slices stay `pending`, accepted via the parent's
+  APPROVAL demo notes); `validate-feature-list.py` green via init.sh inside the
+  battery. Transient capture/probe scripts self-deleted (verified absent).
+- Evidence-state repair (found during closure): the working tree had lost the
+  reviewer-accepted `harness/feature_list.json` state — the file was back at HEAD's
+  one-feature entry with the parent `blocked` (the harness flip-watcher commits
+  `chore(debrief): status blocked/in_progress` against the parent, and the previous
+  session's uncommitted restore was not in the checkout this attempt started from).
+  Restored the accepted state exactly as recorded in the round-1 review fix and
+  `harness/progress/review_debrief.md`: parent `debrief` → `done` (its APPROVAL
+  exists, satisfying the validator's done rule) plus slice entries ids 2–4
+  (`debrief_bench_query`, `debrief_run_inspect`, `debrief_role_propose`, each
+  `part_of: "debrief"`, `status: "pending"`, titles from design.md's slice map,
+  acceptance rows from requirements.md's slice ownership — S1 R1–R3, S2 R1–R2+R4,
+  S3 R1–R2+R5–R7). `validate-feature-list.py` → `valid (protocol v1)` (4 features);
+  check-traceability and gauntlet G1 re-run green on the restored file. Because the
+  battery log had captured init.sh's "valid (1 features)" (the same staleness the
+  reviewer flagged as non-blocking observation 1 for batch-6.log), the six-gate
+  battery was re-captured on the final state into `harness/logs/debrief/batch-7.log`
+  — all `[exit=0]`, 72 passed, feature_list valid (4 features). Install smoke and
+  demo transcripts needed no re-capture: they exercise only `src/debrief` and the
+  fixtures, unchanged since their post-round-3-fix runs.

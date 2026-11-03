@@ -1,0 +1,95 @@
+# debrief gate battery — T4 fix round 5 (gauntlet round-5 findings G2-1 / G2-2
+# + the fresh-eyes residual: Unicode line separators U+0085/U+2028/U+2029 in
+# free-text artifact fields now refuse via the str.splitlines() single-line rule,
+# and identifier-like fields additionally refuse control characters).
+# G2-1: ggufbench artifact string fields are validated at the adapter boundary —
+#   identifier-like fields (model, task, baseline, engine_build, graded dimension names)
+#   must be single-line whitespace-free tokens; free-text fields (reason, artifact) must
+#   be single-line control-char-free; anything else refuses as source_unparseable.
+# G2-2: buildwright probe mirrored on the bench stat()-based probe; an existing log
+#   behind an unreadable parent answers source_unparseable, not run_source_missing.
+# Suite 72 -> 91 tests (12 + 7 regression rows over the two findings and the residual).
+# feature_list.json on the closure state (parent debrief done + 3 slice entries pending).
+
+
+$ bash harness/init.sh
+── 1. Checking harness files ──────────────────────────
+[0;32m[OK][0m    Exists AGENTS.md
+[0;32m[OK][0m    Exists .claude/ or .opencode/
+[0;32m[OK][0m    Exists harness/CHECKPOINTS.md
+[0;32m[OK][0m    Exists harness/feature_list.json
+[0;32m[OK][0m    Exists harness/progress/current.md
+[0;32m[OK][0m    Exists docs/architecture.md
+[0;32m[OK][0m    Exists docs/conventions.md
+[0;32m[OK][0m    Exists docs/verification.md
+[0;32m[OK][0m    Exists docs/specs.md
+[0;32m[OK][0m    Exists harness/specs/
+
+── 2. Validating harness/feature_list.json ────────────
+[OK]    harness/feature_list.json valid (4 features)
+
+── 3. Running tests ──────────────────────────────────
+Running: uv run pytest tests 2>&1
+============================= test session starts ==============================
+platform linux -- Python 3.14.7, pytest-9.2.0, pluggy-1.7.0
+rootdir: /home/jordi/works/debrief/.buildwright/worktrees/debrief
+configfile: pyproject.toml
+plugins: anyio-4.16.0
+collected 91 items
+
+tests/test_bench.py ............................................         [ 48%]
+tests/test_package.py .                                                  [ 49%]
+tests/test_propose.py ..............................                     [ 82%]
+tests/test_quality_gates.py .                                            [ 83%]
+tests/test_run.py ...............                                        [100%]
+
+============================== 91 passed in 0.48s ==============================
+[0;32m[OK][0m    All tests pass
+
+── 4. Summary ────────────────────────────────────────
+[0;32m[OK][0m    Environment ready. You can start working.
+[exit=0]
+
+$ uv run pytest tests
+============================= test session starts ==============================
+platform linux -- Python 3.14.7, pytest-9.2.0, pluggy-1.7.0
+rootdir: /home/jordi/works/debrief/.buildwright/worktrees/debrief
+configfile: pyproject.toml
+plugins: anyio-4.16.0
+collected 91 items
+
+tests/test_bench.py ............................................         [ 48%]
+tests/test_package.py .                                                  [ 49%]
+tests/test_propose.py ..............................                     [ 82%]
+tests/test_quality_gates.py .                                            [ 83%]
+tests/test_run.py ...............                                        [100%]
+
+============================== 91 passed in 0.46s ==============================
+[exit=0]
+
+$ uv run ruff check .
+All checks passed!
+[exit=0]
+
+$ uv run ruff format --check .
+45 files already formatted
+[exit=0]
+
+$ uv run mypy --strict
+Success: no issues found in 14 source files
+[exit=0]
+
+$ bash harness/tools/audit-security.sh
+# Security Audit Report (stack: python)
+
+## SAST: bandit
+## Dependency scan: pip-audit — SKIPPED (not installed; uvx pip-audit, or pip install pip-audit)
+
+## Checklist
+Confirm every item of the Security Audit Checklist in docs/verification.md
+(section 'Security Audit Checklist'). Record the outcome in the review file.
+
+VERDICT: no HIGH severity findings reported by automated tools.
+… (148 bandit finding(s) elided here — all LOW: B101 asserts in tests, B105 'pass' domain constant;
+   HIGH seen: 0. Elision note written by the battery runner; the scan itself ran unfiltered.)
+[exit=0]

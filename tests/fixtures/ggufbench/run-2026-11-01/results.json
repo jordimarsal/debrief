@@ -1,0 +1,43 @@
+{
+  "ggufbench": "0.7.1",
+  "engine_build": "llama.cpp-b4937",
+  "baseline": "b4937-graded-baseline",
+  "rows": [
+    {
+      "model": "llama-3.1-8b-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "pass",
+      "reason": "all three dimensions above the pass mark",
+      "score": 0.86,
+      "graded": {"syntax": 20, "joins": 40, "limits": 10},
+      "artifact": "run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript"
+    },
+    {
+      "model": "qwen2.5-7b-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "fail",
+      "reason": "join-limit dimension below the pass mark",
+      "score": 0.52,
+      "graded": {"syntax": 20, "joins": 40, "limits": 10},
+      "artifact": "run-2026-11-01/sql-join/qwen2.5-7b-instruct.transcript"
+    },
+    {
+      "model": "llama-3.1-8b-instruct-q4_k_m",
+      "task": "regex-extract",
+      "outcome": "pass",
+      "reason": "anchors and groups above the pass mark",
+      "score": 0.74,
+      "graded": {"syntax": 20, "anchors": 30, "groups": 15},
+      "artifact": "run-2026-11-01/regex-extract/llama-3.1-8b-instruct.transcript"
+    },
+    {
+      "model": "phi-3.5-mini-instruct-q4_k_m",
+      "task": "regex-extract",
+      "outcome": "pass",
+      "reason": "anchors and groups above the pass mark",
+      "score": 0.79,
+      "graded": {"syntax": 20, "anchors": 30, "groups": 15},
+      "artifact": "run-2026-11-01/regex-extract/phi-3.5-mini-instruct.transcript"
+    }
+  ]
+}

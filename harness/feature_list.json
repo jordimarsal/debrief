@@ -27,7 +27,46 @@
         "harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security and the gauntlet are green before each slice's Completion Gate",
         "The final system is installable (uv sync / uv tool install) and each slice has a demo note in its approval record"
       ],
-      "status": "in_progress"
+      "status": "done"
+    },
+    {
+      "id": 2,
+      "name": "debrief_bench_query",
+      "title": "debrief S1 bench_query — agent asks what ggufbench measured -> findings from real artifacts",
+      "description": "Walking skeleton (S1): bench.query reads real ggufbench artifacts through the BenchStore port and answers findings; gated inside the parent debrief.",
+      "acceptance": [
+        "Bench findings come only from ggufbench artifacts (R3).",
+        "Every bench.query response is findings or a structured error (R1).",
+        "No file writes while serving (R2)."
+      ],
+      "part_of": "debrief",
+      "status": "pending"
+    },
+    {
+      "id": 3,
+      "name": "debrief_run_inspect",
+      "title": "debrief S2 run_inspect — agent asks where a run broke -> structured findings",
+      "description": "S2: run.inspect reads one buildwright run log through the RunLog port and answers findings; gated inside the parent debrief.",
+      "acceptance": [
+        "Run findings come only from a buildwright run log (R4).",
+        "Every run.inspect response is findings or a structured error (R1).",
+        "No file writes while serving (R2)."
+      ],
+      "part_of": "debrief",
+      "status": "pending"
+    },
+    {
+      "id": 4,
+      "name": "debrief_role_propose",
+      "title": "debrief S3 role_propose — agent gets a BW_ROLE_* proposal citing both ports, text only",
+      "description": "S3: routing.propose composes QueryBench + InspectRun and renders a BW_ROLE_* diff as text; refuses incomparable rows; gated inside the parent debrief.",
+      "acceptance": [
+        "The proposal is a BW_ROLE_* diff as text from both ports' findings (R5).",
+        "Proposals target BW_ROLE_* roles, never models.yaml (R6).",
+        "Incomparable rows answer a structured error, never an average (R7)."
+      ],
+      "part_of": "debrief",
+      "status": "pending"
     }
   ]
 }

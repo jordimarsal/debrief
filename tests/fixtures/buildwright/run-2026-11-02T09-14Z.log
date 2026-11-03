@@ -1,0 +1,9 @@
+buildwright run log — evidence of one episode; debrief reads it, never edits it
+run: r-2026-11-02T09-14Z
+engine_build: llama.cpp-b4937
+task: sql-join
+roles: BW_ROLE_PLANNER=llama-3.2-3b-instruct-q4_k_m BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m BW_ROLE_REVIEWER=phi-3.5-mini-instruct-q4_k_m
+step: 01 role=planner model=llama-3.2-3b-instruct-q4_k_m outcome=pass reason="plan covers every graded dimension" evidence=r-2026-11-02T09-14Z/planner.md
+step: 02 role=worker model=qwen2.5-7b-instruct-q4_k_m outcome=fail reason="patch pushes the join to 41 rows against a graded limit of 40" evidence=r-2026-11-02T09-14Z/worker.patch
+step: 03 role=reviewer model=phi-3.5-mini-instruct-q4_k_m outcome=pass reason="verdict returned after two prompts" evidence=r-2026-11-02T09-14Z/reviewer.md
+result: fail failed_steps=02

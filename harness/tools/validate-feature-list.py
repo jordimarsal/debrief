@@ -22,7 +22,7 @@ AUDIT_LEVELS = ("basic", "standard", "strict")
 NAME_RE = re.compile(r"^[a-z0-9_]+$")
 
 
-def parse_args(argv: list[str]) -> "tuple[bool, str] | int":
+def parse_args(argv: list[str]) -> tuple[bool, str] | int:
     """Parse CLI flags; return (as_json, path) or exit code 2."""
     as_json = False
     path: str | None = None
@@ -46,7 +46,7 @@ def parse_args(argv: list[str]) -> "tuple[bool, str] | int":
     return as_json, path
 
 
-def _validate_project_section(data: dict, err: "Callable[[str, str, str], None]") -> None:
+def _validate_project_section(data: dict, err: Callable[[str, str, str], None]) -> None:
     project = data.get("project")
     if not isinstance(project, dict):
         err("project", "missing", "project section is required")
@@ -64,7 +64,9 @@ def _validate_project_section(data: dict, err: "Callable[[str, str, str], None]"
         err("project.audit_level", "invalid_enum", f"audit_level must be one of {AUDIT_LEVELS}")
 
 
-def _validate_feature(feat: object, at: str, seen_ids: set[int], err: "Callable[[str, str, str], None]") -> str | None:
+def _validate_feature(
+    feat: object, at: str, seen_ids: set[int], err: Callable[[str, str, str], None]
+) -> str | None:
     """Validate one feature entry; return its status when the entry is an object."""
     if not isinstance(feat, dict):
         err(at, "invalid_type", "feature must be an object")
@@ -91,7 +93,9 @@ def _validate_feature(feat: object, at: str, seen_ids: set[int], err: "Callable[
     return status if isinstance(status, str) else None
 
 
-def _require_done_approval(fname: object, fid: object, at: str, err: "Callable[[str, str, str], None]") -> None:
+def _require_done_approval(
+    fname: object, fid: object, at: str, err: Callable[[str, str, str], None]
+) -> None:
     if not isinstance(fname, str):
         return
     approval = os.path.join("harness", "specs", fname, "APPROVAL")
@@ -103,7 +107,7 @@ def _require_done_approval(fname: object, fid: object, at: str, err: "Callable[[
         )
 
 
-def _validate_features(data: dict, err: "Callable[[str, str, str], None]") -> None:
+def _validate_features(data: dict, err: Callable[[str, str, str], None]) -> None:
     features = data.get("features")
     if not isinstance(features, list):
         err("features", "missing", "features array is required")
@@ -144,7 +148,7 @@ def _validate_features(data: dict, err: "Callable[[str, str, str], None]") -> No
         )
 
 
-def _validate_document(data: object, err: "Callable[[str, str, str], None]") -> None:
+def _validate_document(data: object, err: Callable[[str, str, str], None]) -> None:
     if not isinstance(data, dict):
         err("", "invalid_type", "document must be an object")
         return

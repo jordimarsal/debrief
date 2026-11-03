@@ -1,0 +1,132 @@
+LEN 8498
+--- HEAD ---
+# debrief demo transcript — S1 bench.query / S2 run.inspect / S3 routing.propose
+# server: uv run debrief (MCP stdio); roots: real test fixtures; read-only
+
+>>> bench.query {"path": "run-2026-11-01"}
+{
+  "findings": [
+    {
+      "model": "llama-3.1-8b-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "pass",
+      "reason": "all three dimensions above the pass mark",
+      "evidence": "run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript",
+      "signature": {
+        "graded_counts": [
+          [
+            "joins",
+            40
+          ],
+          [
+            "limits",
+            10
+          ],
+          [
+            "syntax",
+            20
+          ]
+        ],
+        "baseline": "b4937-graded-baseline",
+        "engine_build": "llama.cpp-b4937"
+      },
+      "measure": 0.86,
+      "role": null
+    },
+    {
+      "model": "qwen2.5-7b-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "fail",
+      "reason": "join-limit dimension below the pass mark",
+      "evidence": "run-2026-11-01/sql-join/qwen2.5-7b-instruct.transcript",
+      "signature": {
+        "graded_counts": [
+          [
+            "joins",
+            40
+          ],
+          [
+            "limits",
+            10
+          ],
+          [
+            "syntax",
+            20
+          ]
+        ],
+        "baseline": "b4937-graded-baseline",
+        "engine_build": "llama.cpp-b4937"
+      },
+      "measure": 0.52,
+      "role": null
+    },
+    {
+      "model": "llam
+--- TAIL ---
+ource_unparseable",
+    "message": "/tmp/debrief-demo-probes-2fxkmu4b/broken/nonfinite-score-neg-infinity/results.json is not a ggufbench results document",
+    "detail": "score is not a finite number: -inf"
+  }
+}
+
+>>> bench.query {"path": "broken/huge-int-score"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-2fxkmu4b/broken/huge-int-score/results.json is not a ggufbench results document",
+    "detail": "score overflows a float: 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  }
+}
+
+>>> bench.query {"path": "bomb"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-2fxkmu4b/bomb/results.json could not be read as JSON",
+    "detail": "Stack overflow (used 8156 kB) while decoding a JSON array from a unicode string"
+  }
+}
+
+>>> bench.query {"path": "run-1\u0000"}
+{
+  "findings": [],
+  "error": {
+    "code": "path_outside_root",
+    "message": "requested path could not be resolved within the allowed evidence root",
+    "detail": "'run-1\\x00': lstat: embedded null character in path"
+  }
+}
+
+>>> run.inspect {"path": "fail.log\u0000"}
+{
+  "findings": [],
+  "error": {
+    "code": "path_outside_root",
+    "message": "requested path could not be resolved within the allowed evidence root",
+    "detail": "'fail.log\\x00': lstat: embedded null character in path"
+  }
+}
+
+>>> routing.propose {"bench_path": "broken/nonfinite-score-infinity", "run_path": "fail.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-2fxkmu4b/broken/nonfinite-score-infinity/results.json is not a ggufbench results document",
+    "detail": "score is not a finite number: inf"
+  }
+}
+
+>>> routing.propose {"bench_path": "run-2026-11-01", "run_path": "hostile-outcome.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-2fxkmu4b/hostile-outcome.log is not a buildwright run log",
+    "detail": "outcome is not one of ['fail', 'pass']: 'FAIL'"
+  }
+}
+
+demo assertions PASS

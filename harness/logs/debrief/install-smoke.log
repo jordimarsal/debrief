@@ -1,0 +1,57 @@
+$ uv sync
+
+Resolved 43 packages in 1ms
+Checked 40 packages in 0.24ms
+[exit=0]
+
+$ uv tool install . --force
+
+Resolved 29 packages in 192ms
+   Building debrief @ file:///home/jordi/works/debrief/.buildwright/worktrees/debrief
+      Built debrief @ file:///home/jordi/works/debrief/.buildwright/worktrees/debrief
+Prepared 1 package in 5ms
+Installed 29 packages in 10ms
+ + annotated-types==0.8.0
+ + anyio==4.16.0
+ + attrs==26.1.0
+ + cffi==2.1.1
+ + click==8.5.0
+ + cryptography==50.0.2
+ + debrief==0.1.0 (from file:///home/jordi/works/debrief/.buildwright/worktrees/debrief)
+ + h11==0.16.0
+ + httpcore2==2.16.0
+ + httpx2==2.16.0
+ + idna==3.20
+ + jsonschema==4.26.0
+ + jsonschema-specifications==2025.9.1
+ + mcp==2.3.0
+ + mcp-types==2.3.0
+ + opentelemetry-api==1.45.2
+ + pycparser==3.12
+ + pydantic==2.14.2
+ + pydantic-core==2.50.2
+ + pyjwt==2.15.1
+ + python-multipart==0.0.33
+ + referencing==0.37.0
+ + rpds-py==2026.9.1
+ + sse-starlette==3.6.0
+ + starlette==1.10.0
+ + truststore==0.10.5
+ + typing-extensions==4.16.0
+ + typing-inspection==0.4.4
+ + uvicorn==0.54.0
+Installed 1 executable: debrief
+warning: `/tmp/debrief-install-smoke-m3fbs8bv/bin` is not on your PATH. To use installed tools, run `export PATH="/tmp/debrief-install-smoke-m3fbs8bv/bin:$PATH"` or `uv tool update-shell`.
+[exit=0]
+
+installed binary present: True (/tmp/debrief-install-smoke-m3fbs8bv/bin/debrief)
+
+$ debrief  (raw JSON-RPC over stdio: initialize, tools/list, 2 tools/call)
+responses for request ids: [1, 2, 3, 4]
+tools listed: ['bench.query', 'run.inspect', 'routing.propose']
+tools/call bench.query structured answer: {"findings": [{"model": "llama-3.1-8b-instruct-q4_k_m", "task": "sql-join", "outcome": "pass", "reason": "all three dimensions above the pass mark", "evidence": "run-2026-11-01/sql-join/llama-3.1-8b-i…
+
+tools/call run.inspect over a headers-only log: code=source_unparseable detail="run log has a task header but no step: lines"
+
+smoke tools/call answers are findings or structured errors: True
+smoke PASS

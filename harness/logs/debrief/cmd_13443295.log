@@ -1,0 +1,138 @@
+diff --git a/harness/tools/check-traceability.py b/harness/tools/check-traceability.py
+index 514370c..b507c9f 100755
+--- a/harness/tools/check-traceability.py
++++ b/harness/tools/check-traceability.py
+@@ -78,9 +78,7 @@ def collect_tables(
+     if not progress.is_dir():
+         return merged, statuses
+     for impl in sorted(progress.glob("impl_*.md")):
+-        _merge_impl_table(
+-            impl.read_text(encoding="utf-8"), impl.name, feature, merged, statuses
+-        )
++        _merge_impl_table(impl.read_text(encoding="utf-8"), impl.name, feature, merged, statuses)
+     return merged, statuses
+ 
+ 
+@@ -127,7 +125,7 @@ def _py_tests_define(tests_dir: Path, identifier: str) -> bool:
+     return False
+ 
+ 
+-def _js_tests_mention(tests_dir: Path, pat: "re.Pattern[str]") -> bool:
++def _js_tests_mention(tests_dir: Path, pat: re.Pattern[str]) -> bool:
+     for tf in tests_dir.rglob("*.js"):
+         try:
+             if pat.search(tf.read_text(encoding="utf-8", errors="replace")):
+@@ -221,7 +219,7 @@ def _usage() -> str:
+     return "usage: check-traceability.py --all | --feature NAME [--json] [--help] [root]"
+ 
+ 
+-def parse_args(argv: list[str]) -> "tuple[bool, bool, str | None, Path] | int":
++def parse_args(argv: list[str]) -> tuple[bool, bool, str | None, Path] | int:
+     """Parse CLI flags; return (as_json, all_features, feature, root) or exit code 2."""
+     if "--help" in argv or "-h" in argv:
+         print(_usage())
+@@ -285,9 +283,7 @@ def _validate_root(root: Path) -> int:
+     return 2
+ 
+ 
+-def _feature_names(
+-    root: Path, all_features: bool, feature: str | None
+-) -> "list[str] | None":
++def _feature_names(root: Path, all_features: bool, feature: str | None) -> list[str] | None:
+     """Features to check, or None when the request is unusable (error printed)."""
+     if all_features:
+         names = _selected_features(root, all_features, feature)
+@@ -302,7 +298,7 @@ def _feature_names(
+     return [feature]
+ 
+ 
+-def _emit(results: "list[dict]", verdict: str, as_json: bool) -> None:
++def _emit(results: list[dict], verdict: str, as_json: bool) -> None:
+     if as_json:
+         print(
+             json.dumps(
+diff --git a/harness/tools/validate-feature-list.py b/harness/tools/validate-feature-list.py
+index 722fc5c..fb2ec37 100755
+--- a/harness/tools/validate-feature-list.py
++++ b/harness/tools/validate-feature-list.py
+@@ -22,7 +22,7 @@ AUDIT_LEVELS = ("basic", "standard", "strict")
+ NAME_RE = re.compile(r"^[a-z0-9_]+$")
+ 
+ 
+-def parse_args(argv: list[str]) -> "tuple[bool, str] | int":
++def parse_args(argv: list[str]) -> tuple[bool, str] | int:
+     """Parse CLI flags; return (as_json, path) or exit code 2."""
+     as_json = False
+     path: str | None = None
+@@ -46,7 +46,7 @@ def parse_args(argv: list[str]) -> "tuple[bool, str] | int":
+     return as_json, path
+ 
+ 
+-def _validate_project_section(data: dict, err: "Callable[[str, str, str], None]") -> None:
++def _validate_project_section(data: dict, err: Callable[[str, str, str], None]) -> None:
+     project = data.get("project")
+     if not isinstance(project, dict):
+         err("project", "missing", "project section is required")
+@@ -64,7 +64,9 @@ def _validate_project_section(data: dict, err: "Callable[[str, str, str], None]"
+         err("project.audit_level", "invalid_enum", f"audit_level must be one of {AUDIT_LEVELS}")
+ 
+ 
+-def _validate_feature(feat: object, at: str, seen_ids: set[int], err: "Callable[[str, str, str], None]") -> str | None:
++def _validate_feature(
++    feat: object, at: str, seen_ids: set[int], err: Callable[[str, str, str], None]
++) -> str | None:
+     """Validate one feature entry; return its status when the entry is an object."""
+     if not isinstance(feat, dict):
+         err(at, "invalid_type", "feature must be an object")
+@@ -91,7 +93,9 @@ def _validate_feature(feat: object, at: str, seen_ids: set[int], err: "Callable[
+     return status if isinstance(status, str) else None
+ 
+ 
+-def _require_done_approval(fname: object, fid: object, at: str, err: "Callable[[str, str, str], None]") -> None:
++def _require_done_approval(
++    fname: object, fid: object, at: str, err: Callable[[str, str, str], None]
++) -> None:
+     if not isinstance(fname, str):
+         return
+     approval = os.path.join("harness", "specs", fname, "APPROVAL")
+@@ -103,7 +107,7 @@ def _require_done_approval(fname: object, fid: object, at: str, err: "Callable[[
+         )
+ 
+ 
+-def _validate_features(data: dict, err: "Callable[[str, str, str], None]") -> None:
++def _validate_features(data: dict, err: Callable[[str, str, str], None]) -> None:
+     features = data.get("features")
+     if not isinstance(features, list):
+         err("features", "missing", "features array is required")
+@@ -144,7 +148,7 @@ def _validate_features(data: dict, err: "Callable[[str, str, str], None]") -> No
+         )
+ 
+ 
+-def _validate_document(data: object, err: "Callable[[str, str, str], None]") -> None:
++def _validate_document(data: object, err: Callable[[str, str, str], None]) -> None:
+     if not isinstance(data, dict):
+         err("", "invalid_type", "document must be an object")
+         return
+diff --git a/src/debrief/__init__.py b/src/debrief/__init__.py
+index 3fbbf24..7608a96 100644
+--- a/src/debrief/__init__.py
++++ b/src/debrief/__init__.py
+@@ -1,2 +1,16 @@
+-def main() -> None:
+-    print("Hello from debrief!")
++"""debrief — answers agent questions from receipts; never writes (ADR-0001)."""
++
++from __future__ import annotations
++
++from typing import Any
++
++__all__ = ["main"]
++
++
++def __getattr__(name: str) -> Any:
++    # Lazy on purpose: `import debrief` (and so debrief.domain) must not pull in the mcp SDK.
++    if name == "main":
++        from debrief.mcp_server import main
++
++        return main
++    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

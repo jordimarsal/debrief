@@ -1,0 +1,16 @@
+{
+  "ggufbench": "0.7.1",
+  "engine_build": "llama.cpp-b4937",
+  "baseline": "b4937-graded-baseline",
+  "rows": [
+    {
+      "model": "evil-model",
+      "task": "sql-join",
+      "outcome": "pass",
+      "reason": "score emitted as the JSON -Infinity token",
+      "score": -Infinity,
+      "graded": {"syntax": 20, "joins": 40, "limits": 10},
+      "artifact": "nonfinite-score-neg-infinity/sql-join/evil-model.transcript"
+    }
+  ]
+}

@@ -1,0 +1,82 @@
+diff --git a/harness/specs/debrief/design.md b/harness/specs/debrief/design.md
+index e9f455d..266d535 100644
+--- a/harness/specs/debrief/design.md
++++ b/harness/specs/debrief/design.md
+@@ -17,7 +17,9 @@ S1 is the walking skeleton (real path, no mocks). Parent done after S3 Completio
+ ## Approach
+ 
+ - Domain: `Finding` (shared currency) + comparability rule. No writes, no ggufbench/buildwright/mcp imports.
+-- Driving: one use case per question: QueryBench, InspectRun, ProposeRole. MCP stdio tools + thin CLI for demos.
++- Driving: one use case per question: QueryBench, InspectRun, ProposeRole. MCP stdio
++  tools; the `debrief` entry point is that stdio server and demos drive it from an MCP
++  client — there is no separate CLI adapter.
+ - Driven: BenchStore, RunLog ports; adapters read-only.
+ - ProposeRole composes both ports and renders BW_ROLE_* diff as text (S3 only).
+ 
+@@ -41,23 +43,38 @@ S1 is the walking skeleton (real path, no mocks). Parent done after S3 Completio
+ ```python
+ @dataclass(frozen=True)
+ class DebriefError:
+-    code: str; message: str; detail: str
++    code: str
++    message: str
++    detail: str
++
+ 
+ @dataclass(frozen=True)
+ class Finding:
+-    model: str; task: str; outcome: str; reason: str; evidence: str
++    model: str
++    task: str
++    outcome: str
++    reason: str
++    evidence: str
++
+ 
+ class BenchStore(Protocol):
+     def findings(self) -> list[Finding] | DebriefError: ...
++
++
+ class RunLog(Protocol):
+     def findings(self) -> list[Finding] | DebriefError: ...
+ 
++
+ class QueryBench:
+     def __init__(self, store: BenchStore): ...
+     def run(self) -> list[Finding] | DebriefError: ...
++
++
+ class InspectRun:
+     def __init__(self, log: RunLog): ...
+     def run(self) -> list[Finding] | DebriefError: ...
++
++
+ class ProposeRole:
+     def __init__(self, bench: QueryBench, run: InspectRun): ...
+     def run(self) -> str | DebriefError: ...  # text only
+diff --git a/harness/specs/debrief/tasks.md b/harness/specs/debrief/tasks.md
+index 2ce78b6..5e16238 100644
+--- a/harness/specs/debrief/tasks.md
++++ b/harness/specs/debrief/tasks.md
+@@ -1,17 +1,17 @@
+ # Tasks: debrief
+ 
+-- [ ] T1: S1 walking skeleton. Create src/debrief/errors.py (DebriefError), domain.py (Finding + comparability), ports.py (BenchStore, RunLog), use_cases.py (QueryBench), adapters/ggufbench_store.py, mcp_server.py (bench.query tool + main), add mcp to pyproject.toml, add 3 slice entries to feature_list.json. Add tests/test_bench.py using a real ggufbench fixture.
++- [x] T1: S1 walking skeleton. Create src/debrief/errors.py (DebriefError), domain.py (Finding + comparability), ports.py (BenchStore, RunLog), use_cases.py (QueryBench), adapters/ggufbench_store.py, mcp_server.py (bench.query tool + main), add mcp to pyproject.toml, add 3 slice entries to feature_list.json. Add tests/test_bench.py using a real ggufbench fixture.
+       depends_on: (none)
+       refs: R1, R2, R3
+ 
+-- [ ] T2: S2 run inspect. Create adapters/buildwright_log.py and InspectRun in use_cases.py. Add run.inspect MCP tool. Add tests/test_run.py using a real run log fixture.
++- [x] T2: S2 run inspect. Create adapters/buildwright_log.py and InspectRun in use_cases.py. Add run.inspect MCP tool. Add tests/test_run.py using a real run log fixture.
+       depends_on: T1
+       refs: R1, R2, R4
+ 
+-- [ ] T3: S3 role propose. Implement ProposeRole (composes QueryBench + InspectRun) and routing.propose MCP tool returning BW_ROLE_* diff as text. Refuse incomparable rows. Add tests/test_propose.py.
++- [x] T3: S3 role propose. Implement ProposeRole (composes QueryBench + InspectRun) and routing.propose MCP tool returning BW_ROLE_* diff as text. Refuse incomparable rows. Add tests/test_propose.py.
+       depends_on: T2
+       refs: R1, R2, R5, R6, R7
+ 
+-- [ ] T4: Gates and closure. Run harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security, gauntlet. Verify uv sync / uv tool install smoke. Run check-traceability.py. Record demo notes. Move parent to done.
++- [x] T4: Gates and closure. Run harness/init.sh, uv run pytest tests, ruff, mypy --strict, audit-security, gauntlet. Verify uv sync / uv tool install smoke. Run check-traceability.py. Record demo notes. Move parent to done.
+       depends_on: T3
+       refs: R8, R9, R10, R11

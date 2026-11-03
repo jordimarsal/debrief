@@ -1,0 +1,87 @@
+# debrief gate battery — T4 fix round 2 (gauntlet round-2 findings G2-1 / G2-2)
+# non-finite (NaN/Infinity/-Infinity) and huge-int scores refuse at the
+# ggufbench_store boundary; everything re-run after the fix, all [exit=0].
+
+$ bash harness/init.sh
+── 1. Checking harness files ──────────────────────────
+[0;32m[OK][0m    Exists AGENTS.md
+[0;32m[OK][0m    Exists .claude/ or .opencode/
+[0;32m[OK][0m    Exists harness/CHECKPOINTS.md
+[0;32m[OK][0m    Exists harness/feature_list.json
+[0;32m[OK][0m    Exists harness/progress/current.md
+[0;32m[OK][0m    Exists docs/architecture.md
+[0;32m[OK][0m    Exists docs/conventions.md
+[0;32m[OK][0m    Exists docs/verification.md
+[0;32m[OK][0m    Exists docs/specs.md
+[0;32m[OK][0m    Exists harness/specs/
+
+── 2. Validating harness/feature_list.json ────────────
+[OK]    harness/feature_list.json valid (1 features)
+[OK]    Feature in progress: debrief
+
+── 3. Running tests ──────────────────────────────────
+Running: uv run pytest tests 2>&1
+============================= test session starts ==============================
+platform linux -- Python 3.14.7, pytest-9.2.0, pluggy-1.7.0
+rootdir: /home/jordi/works/debrief/.buildwright/worktrees/debrief
+configfile: pyproject.toml
+plugins: anyio-4.16.0
+collected 62 items
+
+tests/test_bench.py ...........................                          [ 43%]
+tests/test_package.py .                                                  [ 45%]
+tests/test_propose.py ...................                                [ 75%]
+tests/test_quality_gates.py .                                            [ 77%]
+tests/test_run.py ..............                                         [100%]
+
+============================== 62 passed in 0.47s ==============================
+[0;32m[OK][0m    All tests pass
+
+── 4. Summary ────────────────────────────────────────
+[0;32m[OK][0m    Environment ready. You can start working.
+[exit=0]
+
+
+$ uv run pytest tests
+============================= test session starts ==============================
+platform linux -- Python 3.14.7, pytest-9.2.0, pluggy-1.7.0
+rootdir: /home/jordi/works/debrief/.buildwright/worktrees/debrief
+configfile: pyproject.toml
+plugins: anyio-4.16.0
+collected 62 items
+
+tests/test_bench.py ...........................                          [ 43%]
+tests/test_package.py .                                                  [ 45%]
+tests/test_propose.py ...................                                [ 75%]
+tests/test_quality_gates.py .                                            [ 77%]
+tests/test_run.py ..............                                         [100%]
+
+============================== 62 passed in 0.37s ==============================
+[exit=0]
+
+
+$ uv run ruff check .
+All checks passed!
+[exit=0]
+
+
+$ uv run ruff format --check .
+45 files already formatted
+[exit=0]
+
+
+$ uv run mypy --strict
+Success: no issues found in 14 source files
+[exit=0]
+
+
+# Security Audit Report (stack: python)
+
+## SAST: bandit
+… (120 bandit finding(s), all LOW — B101 asserts in tests, B105 'pass' domain constant; HIGH seen: 0. Full scan archived in harness/logs/debrief/cmd_*.log of this session and verbatim in batch-4.log)
+## Checklist
+Confirm every item of the Security Audit Checklist in docs/verification.md
+(section 'Security Audit Checklist'). Record the outcome in the review file.
+
+VERDICT: no HIGH severity findings reported by automated tools.
+

@@ -1,0 +1,154 @@
+4:# normalize to one canonical env name; everything re-run after the fix, all [exit=0].
+37:============================== 72 passed in 0.51s ==============================
+42:[exit=0]
+58:============================== 72 passed in 0.40s ==============================
+59:[exit=0]
+62:All checks passed!
+63:[exit=0]
+67:[exit=0]
+71:[exit=0]
+76:## SAST: bandit
+78:   Severity: Low   Confidence: Medium
+81:   Severity: Low   Confidence: High
+84:   Severity: Low   Confidence: High
+87:   Severity: Low   Confidence: High
+90:   Severity: Low   Confidence: High
+93:   Severity: Low   Confidence: High
+96:   Severity: Low   Confidence: High
+99:   Severity: Low   Confidence: High
+102:   Severity: Low   Confidence: High
+105:   Severity: Low   Confidence: High
+108:   Severity: Low   Confidence: High
+111:   Severity: Low   Confidence: High
+114:   Severity: Low   Confidence: High
+117:   Severity: Low   Confidence: High
+120:   Severity: Low   Confidence: High
+123:   Severity: Low   Confidence: High
+126:   Severity: Low   Confidence: High
+129:   Severity: Low   Confidence: High
+132:   Severity: Low   Confidence: High
+135:   Severity: Low   Confidence: High
+138:   Severity: Low   Confidence: High
+141:   Severity: Low   Confidence: High
+144:   Severity: Low   Confidence: High
+147:   Severity: Low   Confidence: High
+150:   Severity: Low   Confidence: High
+153:   Severity: Low   Confidence: High
+156:   Severity: Low   Confidence: High
+159:   Severity: Low   Confidence: High
+162:   Severity: Low   Confidence: High
+165:   Severity: Low   Confidence: High
+168:   Severity: Low   Confidence: High
+171:   Severity: Low   Confidence: High
+174:   Severity: Low   Confidence: High
+177:   Severity: Low   Confidence: High
+180:   Severity: Low   Confidence: High
+183:   Severity: Low   Confidence: High
+186:   Severity: Low   Confidence: High
+189:   Severity: Low   Confidence: High
+192:   Severity: Low   Confidence: High
+195:   Severity: Low   Confidence: High
+198:   Severity: Low   Confidence: High
+201:   Severity: Low   Confidence: High
+204:   Severity: Low   Confidence: High
+207:   Severity: Low   Confidence: High
+210:   Severity: Low   Confidence: High
+213:   Severity: Low   Confidence: High
+216:   Severity: Low   Confidence: High
+219:   Severity: Low   Confidence: High
+222:   Severity: Low   Confidence: High
+225:   Severity: Low   Confidence: High
+228:   Severity: Low   Confidence: High
+231:   Severity: Low   Confidence: High
+234:   Severity: Low   Confidence: High
+237:   Severity: Low   Confidence: High
+240:   Severity: Low   Confidence: High
+243:   Severity: Low   Confidence: High
+246:   Severity: Low   Confidence: High
+249:   Severity: Low   Confidence: High
+252:   Severity: Low   Confidence: High
+255:   Severity: Low   Confidence: High
+258:   Severity: Low   Confidence: High
+261:   Severity: Low   Confidence: High
+264:   Severity: Low   Confidence: High
+267:   Severity: Low   Confidence: High
+270:   Severity: Low   Confidence: High
+273:   Severity: Low   Confidence: High
+276:   Severity: Low   Confidence: High
+279:   Severity: Low   Confidence: High
+282:   Severity: Low   Confidence: High
+285:   Severity: Low   Confidence: High
+288:   Severity: Low   Confidence: High
+291:   Severity: Low   Confidence: High
+294:   Severity: Low   Confidence: High
+297:   Severity: Low   Confidence: High
+300:   Severity: Low   Confidence: High
+303:   Severity: Low   Confidence: High
+306:   Severity: Low   Confidence: High
+309:   Severity: Low   Confidence: High
+312:   Severity: Low   Confidence: High
+315:   Severity: Low   Confidence: High
+318:   Severity: Low   Confidence: High
+321:   Severity: Low   Confidence: High
+324:   Severity: Low   Confidence: High
+327:   Severity: Low   Confidence: High
+330:   Severity: Low   Confidence: High
+333:   Severity: Low   Confidence: High
+336:   Severity: Low   Confidence: High
+339:   Severity: Low   Confidence: High
+342:   Severity: Low   Confidence: High
+345:   Severity: Low   Confidence: High
+348:   Severity: Low   Confidence: High
+351:   Severity: Low   Confidence: High
+354:   Severity: Low   Confidence: High
+357:   Severity: Low   Confidence: High
+360:   Severity: Low   Confidence: High
+363:   Severity: Low   Confidence: High
+366:   Severity: Low   Confidence: High
+369:   Severity: Low   Confidence: High
+372:   Severity: Low   Confidence: High
+375:   Severity: Low   Confidence: High
+378:   Severity: Low   Confidence: High
+381:   Severity: Low   Confidence: High
+384:   Severity: Low   Confidence: High
+387:   Severity: Low   Confidence: High
+390:   Severity: Low   Confidence: High
+393:   Severity: Low   Confidence: High
+396:   Severity: Low   Confidence: High
+399:   Severity: Low   Confidence: High
+402:   Severity: Low   Confidence: High
+405:   Severity: Low   Confidence: High
+408:   Severity: Low   Confidence: High
+411:   Severity: Low   Confidence: High
+414:   Severity: Low   Confidence: High
+417:   Severity: Low   Confidence: High
+420:   Severity: Low   Confidence: High
+423:   Severity: Low   Confidence: High
+426:   Severity: Low   Confidence: High
+429:   Severity: Low   Confidence: High
+432:   Severity: Low   Confidence: High
+435:   Severity: Low   Confidence: High
+438:   Severity: Low   Confidence: High
+441:   Severity: Low   Confidence: High
+444:   Severity: Low   Confidence: High
+447:   Severity: Low   Confidence: High
+450:   Severity: Low   Confidence: High
+453:   Severity: Low   Confidence: High
+456:   Severity: Low   Confidence: High
+459:   Severity: Low   Confidence: High
+462:   Severity: Low   Confidence: High
+465:   Severity: Low   Confidence: High
+468:   Severity: Low   Confidence: High
+471:   Severity: Low   Confidence: High
+474:   Severity: Low   Confidence: High
+477:   Severity: Low   Confidence: High
+480:   Severity: Low   Confidence: High
+483:   Severity: Low   Confidence: High
+486:   Severity: Low   Confidence: High
+489:   Severity: Low   Confidence: High
+492:   Severity: Low   Confidence: High
+496:## Checklist
+497:Confirm every item of the Security Audit Checklist in docs/verification.md
+498:(section 'Security Audit Checklist'). Record the outcome in the review file.
+500:VERDICT: no HIGH severity findings reported by automated tools.
+501:[exit=0]

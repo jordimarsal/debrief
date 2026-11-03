@@ -1,0 +1,455 @@
+# debrief demo transcript — S1 bench.query / S2 run.inspect / S3 routing.propose
+# server: uv run debrief (MCP stdio); roots: real fixtures + probe trees; read-only
+# re-recorded after the round-7 fix: zero-step run logs refuse at the adapter boundary (no `step:` lines -> source_unparseable) and the `result:`/`failed_steps` header is cross-checked against the logged step outcomes
+
+>>> tools/list  # ['bench.query', 'run.inspect', 'routing.propose']
+
+>>> bench.query {"path": "run-2026-11-01"}
+{
+  "findings": [
+    {
+      "model": "llama-3.1-8b-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "pass",
+      "reason": "all three dimensions above the pass mark",
+      "evidence": "run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript",
+      "signature": {
+        "graded_counts": [
+          [
+            "joins",
+            40
+          ],
+          [
+            "limits",
+            10
+          ],
+          [
+            "syntax",
+            20
+          ]
+        ],
+        "baseline": "b4937-graded-baseline",
+        "engine_build": "llama.cpp-b4937"
+      },
+      "measure": 0.86,
+      "role": null
+    },
+    {
+      "model": "qwen2.5-7b-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "fail",
+      "reason": "join-limit dimension below the pass mark",
+      "evidence": "run-2026-11-01/sql-join/qwen2.5-7b-instruct.transcript",
+      "signature": {
+        "graded_counts": [
+          [
+            "joins",
+            40
+          ],
+          [
+            "limits",
+            10
+          ],
+          [
+            "syntax",
+            20
+          ]
+        ],
+        "baseline": "b4937-graded-baseline",
+        "engine_build": "llama.cpp-b4937"
+      },
+      "measure": 0.52,
+      "role": null
+    },
+    {
+      "model": "llama-3.1-8b-instruct-q4_k_m",
+      "task": "regex-extract",
+      "outcome": "pass",
+      "reason": "anchors and groups above the pass mark",
+      "evidence": "run-2026-11-01/regex-extract/llama-3.1-8b-instruct.transcript",
+      "signature": {
+        "graded_counts": [
+          [
+            "anchors",
+            30
+          ],
+          [
+            "groups",
+            15
+          ],
+          [
+            "syntax",
+            20
+          ]
+        ],
+        "baseline": "b4937-graded-baseline",
+        "engine_build": "llama.cpp-b4937"
+      },
+      "measure": 0.74,
+      "role": null
+    },
+    {
+      "model": "phi-3.5-mini-instruct-q4_k_m",
+      "task": "regex-extract",
+      "outcome": "pass",
+      "reason": "anchors and groups above the pass mark",
+      "evidence": "run-2026-11-01/regex-extract/phi-3.5-mini-instruct.transcript",
+      "signature": {
+        "graded_counts": [
+          [
+            "anchors",
+            30
+          ],
+          [
+            "groups",
+            15
+          ],
+          [
+            "syntax",
+            20
+          ]
+        ],
+        "baseline": "b4937-graded-baseline",
+        "engine_build": "llama.cpp-b4937"
+      },
+      "measure": 0.79,
+      "role": null
+    }
+  ],
+  "error": null
+}
+
+>>> run.inspect {"path": "run-2026-11-02T09-14Z.log"}
+{
+  "findings": [
+    {
+      "model": "llama-3.2-3b-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "pass",
+      "reason": "plan covers every graded dimension",
+      "evidence": "r-2026-11-02T09-14Z/planner.md",
+      "signature": null,
+      "measure": null,
+      "role": "planner"
+    },
+    {
+      "model": "qwen2.5-7b-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "fail",
+      "reason": "patch pushes the join to 41 rows against a graded limit of 40",
+      "evidence": "r-2026-11-02T09-14Z/worker.patch",
+      "signature": null,
+      "measure": null,
+      "role": "worker"
+    },
+    {
+      "model": "phi-3.5-mini-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "pass",
+      "reason": "verdict returned after two prompts",
+      "evidence": "r-2026-11-02T09-14Z/reviewer.md",
+      "signature": null,
+      "measure": null,
+      "role": "reviewer"
+    }
+  ],
+  "error": null
+}
+
+>>> routing.propose {"bench_path": "run-2026-11-01", "run_path": "run-2026-11-02T09-14Z.log"}
+{
+  "proposal": "proposal: BW_ROLE_WORKER holds qwen2.5-7b-instruct-q4_k_m, which failed task sql-join\n- BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m\n+ BW_ROLE_WORKER=llama-3.1-8b-instruct-q4_k_m\nwhy run: qwen2.5-7b-instruct-q4_k_m failed sql-join (patch pushes the join to 41 rows against a graded limit of 40) \u2014 r-2026-11-02T09-14Z/worker.patch\nwhy bench: llama-3.1-8b-instruct-q4_k_m passed sql-join at score 0.86 (all three dimensions above the pass mark) \u2014 run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript\nsignature: joins:40,limits:10,syntax:20@b4937-graded-baseline@llama.cpp-b4937\nnot applied: debrief never writes; paste the + line into the buildwright role env (ADR-0001). Proposals target roles, never models.yaml (ADR-0003).",
+  "error": null
+}
+
+>>> routing.propose {"bench_path": "cohorts", "run_path": "run-2026-11-02T09-14Z.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "incomparable_rows",
+    "message": "rows span more than one task signature; refusing to rank or average",
+    "detail": "2 signatures: joins:40,limits:10,syntax:20@b4937-graded-baseline@llama.cpp-b4937, joins:40,limits:10,syntax:20@b4945-graded-baseline@llama.cpp-b4937"
+  }
+}
+
+## gauntlet rounds 1–3 findings, re-probed over MCP stdio
+
+>>> bench.query {"path": "broken/nonfinite-score-nan"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/broken/nonfinite-score-nan/results.json is not a ggufbench results document",
+    "detail": "score is not a finite number: nan"
+  }
+}
+
+>>> bench.query {"path": "broken/nonfinite-score-infinity"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/broken/nonfinite-score-infinity/results.json is not a ggufbench results document",
+    "detail": "score is not a finite number: inf"
+  }
+}
+
+>>> bench.query {"path": "broken/nonfinite-score-neg-infinity"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/broken/nonfinite-score-neg-infinity/results.json is not a ggufbench results document",
+    "detail": "score is not a finite number: -inf"
+  }
+}
+
+>>> bench.query {"path": "broken/huge-int-score"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/broken/huge-int-score/results.json is not a ggufbench results document",
+    "detail": "score overflows a float: 1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+  }
+}
+
+>>> bench.query {"path": "bomb"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/bomb/results.json could not be read as JSON",
+    "detail": "Stack overflow (used 8156 kB) while decoding a JSON array from a unicode string"
+  }
+}
+
+>>> bench.query {"path": "run-2026-11-01\u0000"}
+{
+  "findings": [],
+  "error": {
+    "code": "path_outside_root",
+    "message": "requested path could not be resolved within the allowed evidence root",
+    "detail": "'run-2026-11-01\\x00': lstat: embedded null character in path"
+  }
+}
+
+>>> run.inspect {"path": "run-2026-11-02T09-14Z.log\u0000"}
+{
+  "findings": [],
+  "error": {
+    "code": "path_outside_root",
+    "message": "requested path could not be resolved within the allowed evidence root",
+    "detail": "'run-2026-11-02T09-14Z.log\\x00': lstat: embedded null character in path"
+  }
+}
+
+>>> run.inspect {"path": "run-bad-outcome-FAIL.log"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/run/run-bad-outcome-FAIL.log is not a buildwright run log",
+    "detail": "outcome is not one of ['fail', 'pass']: 'FAIL'"
+  }
+}
+
+>>> bench.query {"path": "r1"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "a run's results.json escapes the ggufbench artifact root",
+    "detail": "/tmp/debrief-demo-probes-wc15s9m2/bench/r1/results.json resolves outside the artifact root"
+  }
+}
+
+>>> routing.propose {"bench_path": "r1", "run_path": "run-2026-11-02T09-14Z.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "a run's results.json escapes the ggufbench artifact root",
+    "detail": "/tmp/debrief-demo-probes-wc15s9m2/bench/r1/results.json resolves outside the artifact root"
+  }
+}
+
+>>> routing.propose {"bench_path": "run-2026-11-01", "run_path": "prefixed-role.log"}
+{
+  "proposal": "proposal: BW_ROLE_WORKER holds qwen2.5-7b-instruct-q4_k_m, which failed task sql-join\n- BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m\n+ BW_ROLE_WORKER=llama-3.1-8b-instruct-q4_k_m\nwhy run: qwen2.5-7b-instruct-q4_k_m failed sql-join (join limit exceeded) \u2014 r-prefixed/worker.patch\nwhy bench: llama-3.1-8b-instruct-q4_k_m passed sql-join at score 0.86 (all three dimensions above the pass mark) \u2014 run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript\nsignature: joins:40,limits:10,syntax:20@b4937-graded-baseline@llama.cpp-b4937\nnot applied: debrief never writes; paste the + line into the buildwright role env (ADR-0001). Proposals target roles, never models.yaml (ADR-0003).",
+  "error": null
+}
+
+## gauntlet round-5 findings, re-probed over MCP stdio
+
+>>> bench.query {"path": "poisoned-model"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/poisoned-model/results.json is not a ggufbench results document",
+    "detail": "model is not a single-line whitespace-free token: 'trusted-winner\\n+ BW_ROLE_WORKER=evil-model'"
+  }
+}
+
+>>> routing.propose {"bench_path": "poisoned-model", "run_path": "run-2026-11-02T09-14Z.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/poisoned-model/results.json is not a ggufbench results document",
+    "detail": "model is not a single-line whitespace-free token: 'trusted-winner\\n+ BW_ROLE_WORKER=evil-model'"
+  }
+}
+
+>>> bench.query {"path": "poisoned-registry"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/poisoned-registry/results.json is not a ggufbench results document",
+    "detail": "model is not a single-line whitespace-free token: 'trusted-winner\\n+ models.yaml: rewrite-every-role'"
+  }
+}
+
+>>> routing.propose {"bench_path": "poisoned-registry", "run_path": "run-2026-11-02T09-14Z.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/poisoned-registry/results.json is not a ggufbench results document",
+    "detail": "model is not a single-line whitespace-free token: 'trusted-winner\\n+ models.yaml: rewrite-every-role'"
+  }
+}
+
+>>> bench.query {"path": "poisoned-reason"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/poisoned-reason/results.json is not a ggufbench results document",
+    "detail": "reason contains control characters: 'clean\\nforged line'"
+  }
+}
+
+>>> routing.propose {"bench_path": "poisoned-reason", "run_path": "run-2026-11-02T09-14Z.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/poisoned-reason/results.json is not a ggufbench results document",
+    "detail": "reason contains control characters: 'clean\\nforged line'"
+  }
+}
+
+>>> bench.query {"path": "poisoned-separator"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/poisoned-separator/results.json is not a ggufbench results document",
+    "detail": "reason is not a single line: 'trusted-value\\u2029+ BW_ROLE_WORKER=evil-model'"
+  }
+}
+
+>>> routing.propose {"bench_path": "poisoned-separator", "run_path": "run-2026-11-02T09-14Z.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/bench/poisoned-separator/results.json is not a ggufbench results document",
+    "detail": "reason is not a single line: 'trusted-value\\u2029+ BW_ROLE_WORKER=evil-model'"
+  }
+}
+
+>>> run.inspect {"path": "locked/run-locked.log"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/run/locked/run-locked.log exists but cannot be probed",
+    "detail": "[Errno 13] Permission denied: '/tmp/debrief-demo-probes-wc15s9m2/run/locked/run-locked.log'"
+  }
+}
+
+## gauntlet round-7 findings, probed over MCP stdio
+(zero-step run log refusal at the adapter boundary; result:/failed_steps header)
+
+>>> run.inspect {"path": "headers-only.log"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/run/headers-only.log is not a buildwright run log",
+    "detail": "run log has a task header but no step: lines"
+  }
+}
+
+>>> routing.propose {"bench_path": "run-2026-11-01", "run_path": "headers-only.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/run/headers-only.log is not a buildwright run log",
+    "detail": "run log has a task header but no step: lines"
+  }
+}
+
+>>> run.inspect {"path": "lying-header.log"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/run/lying-header.log is not a buildwright run log",
+    "detail": "result header declares pass but logged step 01 failed"
+  }
+}
+
+>>> routing.propose {"bench_path": "run-2026-11-01", "run_path": "lying-header.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/run/lying-header.log is not a buildwright run log",
+    "detail": "result header declares pass but logged step 01 failed"
+  }
+}
+
+>>> run.inspect {"path": "failed-steps-mismatch.log"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/tmp/debrief-demo-probes-wc15s9m2/run/failed-steps-mismatch.log is not a buildwright run log",
+    "detail": "result header failed_steps='03' does not match the logged failing step(s) ['2']"
+  }
+}
+
+>>> run.inspect {"path": "consistent-header.log"}
+{
+  "findings": [
+    {
+      "model": "llama-3.1-8b-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "pass",
+      "reason": "plan covers every graded dimension",
+      "evidence": "r-consistent/planner.md",
+      "signature": null,
+      "measure": null,
+      "role": "planner"
+    },
+    {
+      "model": "qwen2.5-7b-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "fail",
+      "reason": "join limit exceeded",
+      "evidence": "r-consistent/worker.patch",
+      "signature": null,
+      "measure": null,
+      "role": "worker"
+    }
+  ],
+  "error": null
+}
+
+demo assertions PASS

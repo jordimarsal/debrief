@@ -1,0 +1,2 @@
+## debrief: 11/11 requirements covered
+VERDICT: PASS

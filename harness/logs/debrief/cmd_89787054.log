@@ -1,0 +1,175 @@
+tools: bench.query, run.inspect, routing.propose
+
+>>> bench.query {"path": "run-2026-11-01"}
+{
+  "error": null,
+  "findings": [
+    {
+      "evidence": "run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript",
+      "measure": 0.86,
+      "model": "llama-3.1-8b-instruct-q4_k_m",
+      "outcome": "pass",
+      "reason": "all three dimensions above the pass mark",
+      "role": null,
+      "signature": {
+        "baseline": "b4937-graded-baseline",
+        "engine_build": "llama.cpp-b4937",
+        "graded_counts": [
+          [
+            "joins",
+            40
+          ],
+          [
+            "limits",
+            10
+          ],
+          [
+            "syntax",
+            20
+          ]
+        ]
+      },
+      "task": "sql-join"
+    },
+    {
+      "evidence": "run-2026-11-01/sql-join/qwen2.5-7b-instruct.transcript",
+      "measure": 0.52,
+      "model": "qwen2.5-7b-instruct-q4_k_m",
+      "outcome": "fail",
+      "reason": "join-limit dimension below the pass mark",
+      "role": null,
+      "signature": {
+        "baseline": "b4937-graded-baseline",
+        "engine_build": "llama.cpp-b4937",
+        "graded_counts": [
+          [
+            "joins",
+            40
+          ],
+          [
+            "limits",
+            10
+          ],
+          [
+            "syntax",
+            20
+          ]
+        ]
+      },
+      "task": "sql-join"
+    },
+    {
+      "evidence": "run-2026-11-01/regex-extract/llama-3.1-8b-instruct.transcript",
+      "measure": 0.74,
+      "model": "llama-3.1-8b-instruct-q4_k_m",
+      "outcome": "pass",
+      "reason": "anchors and groups above the pass mark",
+      "role": null,
+      "signature": {
+        "baseline": "b4937-graded-baseline",
+        "engine_build": "llama.cpp-b4937",
+        "graded_counts": [
+          [
+            "anchors",
+            30
+          ],
+          [
+            "groups",
+            15
+          ],
+          [
+            "syntax",
+            20
+          ]
+        ]
+      },
+      "task": "regex-extract"
+    },
+    {
+      "evidence": "run-2026-11-01/regex-extract/phi-3.5-mini-instruct.transcript",
+      "measure": 0.79,
+      "model": "phi-3.5-mini-instruct-q4_k_m",
+      "outcome": "pass",
+      "reason": "anchors and groups above the pass mark",
+      "role": null,
+      "signature": {
+        "baseline": "b4937-graded-baseline",
+        "engine_build": "llama.cpp-b4937",
+        "graded_counts": [
+          [
+            "anchors",
+            30
+          ],
+          [
+            "groups",
+            15
+          ],
+          [
+            "syntax",
+            20
+          ]
+        ]
+      },
+      "task": "regex-extract"
+    }
+  ]
+}
+
+>>> run.inspect {"path": "run-2026-11-02T09-14Z.log"}
+{
+  "error": null,
+  "findings": [
+    {
+      "evidence": "r-2026-11-02T09-14Z/planner.md",
+      "measure": null,
+      "model": "llama-3.2-3b-instruct-q4_k_m",
+      "outcome": "pass",
+      "reason": "plan covers every graded dimension",
+      "role": "planner",
+      "signature": null,
+      "task": "sql-join"
+    },
+    {
+      "evidence": "r-2026-11-02T09-14Z/worker.patch",
+      "measure": null,
+      "model": "qwen2.5-7b-instruct-q4_k_m",
+      "outcome": "fail",
+      "reason": "patch pushes the join to 41 rows against a graded limit of 40",
+      "role": "worker",
+      "signature": null,
+      "task": "sql-join"
+    },
+    {
+      "evidence": "r-2026-11-02T09-14Z/reviewer.md",
+      "measure": null,
+      "model": "phi-3.5-mini-instruct-q4_k_m",
+      "outcome": "pass",
+      "reason": "verdict returned after two prompts",
+      "role": "reviewer",
+      "signature": null,
+      "task": "sql-join"
+    }
+  ]
+}
+
+>>> routing.propose {"bench_path": "run-2026-11-01", "run_path": "run-2026-11-02T09-14Z.log"}
+{
+  "error": null,
+  "proposal": "proposal: BW_ROLE_WORKER holds qwen2.5-7b-instruct-q4_k_m, which failed task sql-join\n- BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m\n+ BW_ROLE_WORKER=llama-3.1-8b-instruct-q4_k_m\nwhy run: qwen2.5-7b-instruct-q4_k_m failed sql-join (patch pushes the join to 41 rows against a graded limit of 40) \u2014 r-2026-11-02T09-14Z/worker.patch\nwhy bench: llama-3.1-8b-instruct-q4_k_m passed sql-join at score 0.86 (all three dimensions above the pass mark) \u2014 run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript\nsignature: joins:40,limits:10,syntax:20@b4937-graded-baseline@llama.cpp-b4937\nnot applied: debrief never writes; paste the + line into the buildwright role env (ADR-0001). Proposals target roles, never models.yaml (ADR-0003)."
+}
+
+>>> routing.propose {"bench_path": ".", "run_path": "run-2026-11-02T09-14Z.log"}
+{
+  "error": {
+    "code": "incomparable_rows",
+    "detail": "2 signatures: joins:40,limits:10,syntax:20@b4937-graded-baseline@llama.cpp-b4937, joins:40,limits:10,syntax:20@b4945-graded-baseline@llama.cpp-b4937",
+    "message": "rows span more than one task signature; refusing to rank or average"
+  },
+  "proposal": ""
+}
+
+DEMO-ASSERTIONS: PASS
+# S1/S2/S3 demos - debrief MCP tools over stdio (real fixtures, no mocks)
+# server: uv run debrief, DEBRIEF_BENCH_ROOT=tests/fixtures/ggufbench, DEBRIEF_RUN_ROOT=tests/fixtures/buildwright
+
+$ uv run python <demo client: initialize, list_tools, 4 tool calls>

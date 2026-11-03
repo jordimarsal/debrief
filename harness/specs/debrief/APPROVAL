@@ -1,0 +1,234 @@
+# Approval record — debrief
+
+Feature: `debrief` (parent of S1 `debrief_bench_query`, S2 `debrief_run_inspect`,
+S3 `debrief_role_propose`; all slices implemented as parent tasks T1–T3 and gated
+inside the parent, so their demo notes live in this record, R11).
+
+The slices are gated here rather than as separate `done` features because
+`harness/feature_list.json` validation requires a spec trio + APPROVAL per `done`
+feature and no dispatch authorized spec dirs for the slice names; their
+requirements are the parent's R1–R7 and their acceptance rows are the demo notes
+below. The three slice entries (`part_of: "debrief"`, `status: "pending"`) are
+registered in `harness/feature_list.json` per design.md's slice map.
+
+## Completion Gate (in_progress → done) — 2026-11-02
+
+Gate battery first recorded in `harness/logs/debrief/batch-4.log`; gauntlet
+round-1 findings (4 × hostile-input) were fixed and re-run (`batch-5.log`, round 2
+REJECT with two new sibling findings); those two — non-finite
+(NaN/Infinity/-Infinity) scores fabricating a proposal winner and a huge-int score
+crashing past the structured-error contract — were fixed at the `ggufbench_store`
+boundary and re-run (`batch-6.log`, round 3 REJECT with three findings: nested
+symlink indirection escaping the evidence root, a `BW_ROLE_`-prefixed role token
+rendering a non-pasteable diff, and defended residuals); the round-3 findings were
+fixed at the artifact-root scan boundary (`_contained_results`: resolve every
+candidate under the resolved root before reading) and in `_canonical_role` (one
+env name per role), and every gate below was re-run again (`batch-7.log`,
+round 4 PASS). Gauntlet round 5 then REJECTED with two findings — ggufbench
+artifact string fields rendered verbatim into the proposal text (a newline in
+`model`/`reason`/`artifact`/`baseline`/`engine_build`/a graded dimension forged
+arbitrary `- `/`+ ` diff lines, including an R6-breaking `+ models.yaml:` line)
+and run.inspect answering `run_source_missing` for an existing log behind an
+unreadable parent — both fixed at their boundaries (string-field validation in
+`ggufbench_store.py`: identifier-like fields single-line whitespace-free tokens,
+free-text fields single-line control-char-free, refusing as `source_unparseable`;
+`buildwright_log.py` mirrored onto the stat()-based probe with EACCES ->
+`source_unparseable`). The round-5 fresh-eyes pass caught one residual in that
+fresh fix — Unicode line separators (U+0085/U+2028/U+2029) pass a pure
+`ord < 0x20` check but still split under `str.splitlines()` — fixed in the same
+batch (`_required_line` single-line rule; `_required_token` refuses control
+characters). Round 6 PASS. Gauntlet round 7 — a fresh G2+G3 pass independent of
+the prior six rounds — then REJECTED with one MUST-FIX and its sibling: a
+step-stripped buildwright run log (valid `task:` header, zero `step:` lines)
+answered `[]` as a structured success from run.inspect and the "no proposal:
+every logged step passed" claim from routing.propose, while the log's own
+`result: fail failed_steps=01` header declared a failure; the
+`result:`/`failed_steps` header was parsed nowhere. Both fixed at the boundary
+the findings named, in `src/debrief/adapters/buildwright_log.py` only:
+`_map_log` refuses a log with a `task:` header but no `step:` lines
+(`source_unparseable`), and `_check_result_header` cross-checks the `result:`
+header against the logged step outcomes — `result: pass` over a logged failure
+refuses, a `failed_steps` list that does not match the logged failing step
+ordinals refuses (compared zero-padding-insensitively), a failure claim with no
+logged failing step, an empty list, a malformed header and an outcome token
+outside the pass/fail enum all refuse; the header stays optional and the
+zero-step refusal fires first. 13 regression rows lock the round-7 findings
+(suite 91 → 104); the recorded evidence below is the round-8 run (see
+`harness/progress/gauntlet_debrief.md`, round 8).
+
+Evidence (all paths relative to repo root):
+
+- Gate battery (R8): `harness/logs/debrief/batch-9.log` — six gates, every
+  `[exit=0]`, captured on the closure state (feature_list valid — 4 features):
+  `bash harness/init.sh` (final line `[OK]`),
+  `uv run pytest tests` (104 passed),
+  `uv run ruff check .` (All checks passed!), `uv run ruff format --check .`
+  (45 files already formatted), `uv run mypy --strict` (no issues in 14 files),
+  `bash harness/tools/audit-security.sh` (no HIGH findings; 161 bandit LOW
+  findings elided in the log with a pointer, scan ran unfiltered).
+- Installability smoke (R10): `harness/logs/debrief/install-smoke.log` (re-run
+  after the round-7 fix) — `uv sync` exit 0; `uv tool install .` (temp
+  `UV_TOOL_DIR`/`UV_TOOL_BIN_DIR`) built `debrief==0.1.0` and installed the
+  `debrief` executable; raw JSON-RPC over the installed binary's stdio answered
+  `initialize`, `tools/list` (all three tool names), a `tools/call` of
+  `bench.query` returning 4 findings with no error, and the round-7 probe — a
+  `tools/call` of `run.inspect` over a headers-only log answering
+  `source_unparseable` ("run log has a task header but no step: lines").
+- Traceability: `harness/specs/debrief/traceability.txt` —
+  `## debrief: 11/11 requirements covered`, `VERDICT: PASS`.
+- Gauntlet (C8): `harness/progress/gauntlet_debrief.md` — round 1 REJECT (4 G2
+  findings), round 2 REJECT (2 sibling findings: non-finite scores fabricating a
+  proposal winner; huge-int score breaking the R1 contract), round 3 REJECT
+  (nested symlink indirection escaping the evidence root; non-pasteable
+  `BW_ROLE_BW_ROLE_*` diff from a prefixed role token; residuals defended),
+  round 4 PASS, round 5 REJECT (artifact string-field diff-line forgery;
+  run-log EACCES mislabeled as missing), round 6 PASS, round 7 REJECT (fresh
+  G2+G3 pass: zero-step run log answering `[]`/the all-passed claim; the
+  `result:` header parsed nowhere), round 8 **PASS** with four PASS lines (the
+  round-7 fixes at the adapter boundary, 19 residual probes PASS, 3 findings
+  defended with named trade-offs, carried defenses re-checked); per-pass logs
+  `harness/logs/debrief/gauntlet-g1.log` and the round-8 section of
+  `harness/logs/debrief/gauntlet-g23.log`; all hostile probes re-verified over
+  MCP stdio in the hostile sections of `harness/logs/debrief/demo.log` — incl.
+  the round-7 probes: `run.inspect` over a headers-only log answers
+  `source_unparseable` ("no step: lines"), `routing.propose` over that
+  step-stripped log never answers "every logged step passed",
+  `run.inspect` over a log whose `result: pass` header contradicts a logged
+  failure answers `source_unparseable` ("declares pass"), a
+  `failed_steps=03` list naming a step that passed answers
+  `source_unparseable` ("does not match"), and a consistent
+  `result: fail failed_steps=02` header still parses (earlier rounds: NUL paths
+  → `path_outside_root`; nesting-bomb artifact → `source_unparseable`;
+  NaN/Infinity/-Infinity and huge-int scores → `source_unparseable`;
+  uppercase-outcome run → `source_unparseable` and the "every logged step
+  passed" string absent from the propose answer; artifact-root symlink escape →
+  `source_unparseable` with the external `LEAKED-model` row absent everywhere;
+  `role=BW_ROLE_WORKER` → the normalized `+ BW_ROLE_WORKER=…` diff with no
+  `BW_ROLE_BW_ROLE_`; poisoned `model`/`reason` fields incl. U+2029 →
+  `source_unparseable` with `proposal: ""` and no forged `- `/`+ ` line;
+  an existing run log behind a chmod-000 parent answers `source_unparseable`,
+  never `run_source_missing`).
+- Security audit (standard): bandit LOW findings only (B101 asserts in tests,
+  B105 `PASS = "pass"` domain constant — not a secret); pip-audit unavailable in
+  the environment, checklist walked manually: no secrets, no auth code, stdio
+  binds nothing, no SQL, no eval/exec/pickle, deps via uv lockfile. PASS.
+
+### S1 `debrief_bench_query` — demo note (R11)
+
+Command (MCP client over stdio against the real server; fixtures are real
+ggufbench artifacts):
+
+```
+DEBRIEF_BENCH_ROOT=tests/fixtures/ggufbench \
+DEBRIEF_RUN_ROOT=tests/fixtures/buildwright \
+  uv run python <demo client: initialize, list_tools, tool calls>   # harness/logs/debrief/demo.log
+>>> bench.query {"path": "run-2026-11-01"}
+```
+
+Output (structured content, excerpt):
+
+```json
+{
+  "error": null,
+  "findings": [
+    {"model": "llama-3.1-8b-instruct-q4_k_m", "task": "sql-join", "outcome": "pass",
+     "measure": 0.86, "reason": "all three dimensions above the pass mark",
+     "evidence": "run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript",
+     "signature": {"graded_counts": [["joins", 40], ["limits", 10], ["syntax", 20]],
+                   "baseline": "b4937-graded-baseline", "engine_build": "llama.cpp-b4937"},
+     "role": null}
+  ]
+}
+```
+
+Full output: `harness/logs/debrief/demo.log` (4 findings; 33 demo assertions PASS;
+transcript re-recorded against the round-8 server and extended with the round-7
+hostile probes — a headers-only run log and a log whose `result:` header
+contradicts its logged steps refuse as `source_unparseable` at the run boundary,
+and `routing.propose` over either never answers the "no proposal: every logged
+step passed" claim; earlier sections re-verify every prior round's probes:
+score-boundary NaN/Infinity/-Infinity/huge-int refusals, the nesting bomb, NUL
+paths → `path_outside_root`, the artifact-root symlink escape with no
+`LEAKED-model` row anywhere, the normalized prefixed-role diff, the poisoned
+`model`/`reason`/U+2029 cohorts answering the structured error with
+`proposal: ""`, and the unreadable-parent run log answering
+`source_unparseable`, never `run_source_missing`).
+
+### S2 `debrief_run_inspect` — demo note (R11)
+
+Command:
+
+```
+>>> run.inspect {"path": "run-2026-11-02T09-14Z.log"}
+```
+
+Output (structured content, excerpt):
+
+```json
+{
+  "error": null,
+  "findings": [
+    {"role": "planner", "model": "llama-3.1-8b-instruct-q4_k_m", "task": "sql-join",
+     "outcome": "pass", ...},
+    {"role": "worker", "model": "qwen2.5-7b-instruct-q4_k_m", "task": "sql-join",
+     "outcome": "fail", "measure": null, "signature": null,
+     "reason": "patch pushes the join to 41 rows against a graded limit of 40",
+     "evidence": "r-2026-11-02T09-14Z/worker.patch"},
+    {"role": "reviewer", "model": "phi-3.5-mini-instruct-q4_k_m", "task": "sql-join",
+     "outcome": "pass", ...}
+  ]
+}
+```
+
+Run steps carry no bench knowledge (`signature: null`, `measure: null` — ADR-0002),
+and the run log's own `result: fail failed_steps=02` header agrees with the
+logged failing step (round-7 cross-check). Full output:
+`harness/logs/debrief/demo.log`.
+
+### S3 `debrief_role_propose` — demo note (R11)
+
+Command:
+
+```
+>>> routing.propose {"bench_path": "run-2026-11-01", "run_path": "run-2026-11-02T09-14Z.log"}
+```
+
+Output (`proposal` string, verbatim):
+
+```
+proposal: BW_ROLE_WORKER holds qwen2.5-7b-instruct-q4_k_m, which failed task sql-join
+- BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m
++ BW_ROLE_WORKER=llama-3.1-8b-instruct-q4_k_m
+why run: qwen2.5-7b-instruct-q4_k_m failed sql-join (patch pushes the join to 41 rows against a graded limit of 40) — r-2026-11-02T09-14Z/worker.patch
+why bench: llama-3.1-8b-instruct-q4_k_m passed sql-join at score 0.86 (all three dimensions above the pass mark) — run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript
+signature: joins:40,limits:10,syntax:20@b4937-graded-baseline@llama.cpp-b4937
+not applied: debrief never writes; paste the + line into the buildwright role env (ADR-0001). Proposals target roles, never models.yaml (ADR-0003).
+```
+
+And the refusal path (R7), same log over the two-baseline cohort:
+
+```
+>>> routing.propose {"bench_path": "cohorts", "run_path": "run-2026-11-02T09-14Z.log"}
+{"error": {"code": "incomparable_rows",
+           "detail": "2 signatures: joins:40,limits:10,syntax:20@b4937-graded-baseline@llama.cpp-b4937, joins:40,limits:10,syntax:20@b4945-graded-baseline@llama.cpp-b4937",
+           "message": "rows span more than one task signature; refusing to rank or average"},
+ "proposal": ""}
+```
+
+Result: **APPROVED** — debrief (parent) is `done`. The gauntlet round-1
+hostile-input findings, the round-2 score-boundary findings (NaN/Infinity/-Infinity
+winner fabrication; huge-int OverflowError), the round-3 findings (nested symlink
+indirection escaping the evidence root; non-pasteable `BW_ROLE_BW_ROLE_*` diff
+from a prefixed role token), the round-5 findings (unvalidated artifact string
+fields forging proposal diff lines; an existing-but-unreadable run log mislabeled
+as missing), the round-5 fresh-eyes residual (Unicode line separators
+U+0085/U+2028/U+2029 passing a pure control-character check), and the round-7
+findings (a zero-step run log answering `[]` as a structured success and
+`routing.propose` answering "no proposal: every logged step passed" for a log
+whose own `result: fail` header declares a failure; the `result:`/`failed_steps`
+header parsed nowhere) were fixed at their boundaries, regression-locked
+(104 tests), probe-verified over MCP stdio and over the installed binary, and the
+gauntlet re-ran from G1 to a round-8 PASS (evidence above); the demo notes were
+re-recorded against the fixed server (`harness/logs/debrief/demo.log`, demo
+assertions PASS). No tool call wrote a file at any point (R2); every answer above
+is findings or a structured error (R1), including under hostile input.

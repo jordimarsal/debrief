@@ -1,0 +1,16 @@
+{
+  "ggufbench": "0.7.1",
+  "engine_build": "llama.cpp-b4937",
+  "baseline": "b4937-graded-baseline",
+  "rows": [
+    {
+      "model": "gemma-2-9b-it-q4_k_m",
+      "task": "sql-join",
+      "outcome": "timeout",
+      "reason": "row emitted with a token outside the pass/fail enum",
+      "score": 0.0,
+      "graded": {"syntax": 20, "joins": 40, "limits": 10},
+      "artifact": "run-2026-11-06/sql-join/gemma-2-9b-it.transcript"
+    }
+  ]
+}

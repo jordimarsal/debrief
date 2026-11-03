@@ -1,0 +1,139 @@
+ruff check, ruff format --check (45 files), mypy --strict (14 files),
+  audit-security (no HIGH; the LOW-only bandit noise elided exactly like
+  batch-4/5/6, verdict line verbatim). A first capture pass had the runner's
+  bandit-elision transform unapplied; it was corrected and the battery re-captured
+  clean.
+- Install smoke re-run after the code change (`harness/logs/debrief/install-smoke.log`):
+  `uv sync` exit 0; `uv tool install .` rebuilt `debrief==0.1.0` into a temp tool
+  dir; raw JSON-RPC over the installed binary: initialize / tools/list /
+  tools/call bench.query → 4 findings, `error: null`.
+- Demo transcript re-recorded with the fixed server (`harness/logs/debrief/demo.log`,
+  "demo assertions PASS"): S1/S2/S3 + R7 refusal unchanged in content; rounds-1/2
+  hostile section unchanged; new "gauntlet round-3 findings" section appends the
+  symlink-escape bench/propose refusals and the normalized prefixed-role diff.
+- `python3 harness/tools/check-traceability.py --feature debrief` re-run → 11/11,
+  VERDICT PASS, saved verbatim to `harness/specs/debrief/traceability.txt`;
+  traceability rows R8–R11 updated to the round-4 evidence; APPROVAL Completion Gate
+  section refreshed (round-3 findings named, 72 tests, batch-7/smoke/demo/gauntlet
+  logs, round-4 PASS).
+- Gauntlet re-run from G1: G1 PASS (`harness/logs/debrief/gauntlet-g1.log`); G2+G3
+  PASS (log above); report `harness/progress/gauntlet_debrief.md` rewritten with the
+  round history (1–3 REJECT, 4 PASS), four PASS lines and the findings ledger.
+  `harness/progress/current.md` log extended with the round-3 REJECT → round-4 fix →
+  round-4 PASS chain.
+- Closure state: T4 stays `[x]` in tasks.md; parent `debrief` stays `done` in
+  `harness/feature_list.json` (slices stay `pending`, accepted via the parent's
+  APPROVAL demo notes); `validate-feature-list.py` green via init.sh inside the
+  battery. Transient capture/probe scripts self-deleted (verified absent).
+- Evidence-state repair (found during closure): the working tree had lost the
+  reviewer-accepted `harness/feature_list.json` state — the file was back at HEAD's
+  one-feature entry with the parent `blocked` (the harness flip-watcher commits
+  `chore(debrief): status blocked/in_progress` against the parent, and the previous
+  session's uncommitted restore was not in the checkout this attempt started from).
+  Restored the accepted state exactly as recorded in the round-1 review fix and
+  `harness/progress/review_debrief.md`: parent `debrief` → `done` (its APPROVAL
+  exists, satisfying the validator's done rule) plus slice entries ids 2–4
+  (`debrief_bench_query`, `debrief_run_inspect`, `debrief_role_propose`, each
+  `part_of: "debrief"`, `status: "pending"`, titles from design.md's slice map,
+  acceptance rows from requirements.md's slice ownership — S1 R1–R3, S2 R1–R2+R4,
+  S3 R1–R2+R5–R7). `validate-feature-list.py` → `valid (protocol v1)` (4 features);
+  check-traceability and gauntlet G1 re-run green on the restored file. Because the
+  battery log had captured init.sh's "valid (1 features)" (the same staleness the
+  reviewer flagged as non-blocking observation 1 for batch-6.log), the six-gate
+  battery was re-captured on the final state into `harness/logs/debrief/batch-7.log`
+  — all `[exit=0]`, 72 passed, feature_list valid (4 features). Install smoke and
+  demo transcripts needed no re-capture: they exercise only `src/debrief` and the
+  fixtures, unchanged since their post-round-3-fix runs.
+
+## Batch T4 fix round 5 (gauntlet round-5 findings, per human fix order)
+
+- Gauntlet round 5 REJECTED with 2 findings; this batch fixed both exactly as ordered,
+  then closed the fresh-eyes residual the round's own re-read surfaced.
+- [G2-1 MUST-FIX, artifact string-field forgery] `src/debrief/adapters/
+  ggufbench_store.py` now validates every artifact string field at the boundary:
+  identifier-like fields (`model`, `task`, `baseline`, `engine_build`, graded
+  dimension names) must be single-line whitespace-free tokens (`_required_token`,
+  `_required_counts`), free-text fields (`reason`, `artifact`) single-line
+  control-char-free (`_required_line`); anything else refuses as
+  `source_unparseable` ("not a single-line whitespace-free token" / "contains
+  control characters"), exactly like every other malformed row. Regression rows:
+  `tests/test_bench.py::test_bench_refuses_string_fields_that_could_forge_proposal_lines`
+  parametrized over model/task/reason/artifact/engine_build/baseline poisoning
+  (incl. the two gauntlet probe vectors and control-char shapes) +
+  `test_bench_refuses_multiline_graded_dimension`; end-to-end
+  `tests/test_propose.py::test_poisoned_bench_fields_never_reach_the_proposal_output`
+  parametrized over the forged role line, the forged `models.yaml` registry line, a
+  `reason` vector, an `artifact` vector and a Unicode-separator vector — each
+  asserting the structured refusal, i.e. no forged `- `/`+ ` diff line reaches the
+  caller's output.
+- [G2-2 MINOR, run-log EACCES] `src/debrief/adapters/buildwright_log.py::findings`
+  now mirrors the bench stat()-based probe: `stat()` first —
+  `FileNotFoundError`/`NotADirectoryError` -> `run_source_missing`;
+  `PermissionError` (existing log behind an unreadable parent, or an unreadable
+  file) -> `source_unparseable` ("exists but cannot be probed"); a non-regular
+  stat stays `run_source_missing`. This kills the pathlib-swallowed-EACCES
+  mislabeling ("an evidence tool never silently drops"). Regression:
+  `tests/test_run.py::test_existing_run_log_behind_unreadable_parent_is_unparseable_not_missing`
+  (chmod 000 parent, skipif-root, mode restored in `finally`).
+- [fresh-eyes residual, fixed in this batch] the free-text rule initially refused
+  only `ord(ch) < 0x20 or == 0x7F`, but Unicode line separators (U+0085 NEL,
+  U+2028, U+2029) sit above that range and still split the value everywhere
+  Python splits text — empirically confirmed: `reason="trusted-value<U+2029>
+  + BW_ROLE_WORKER=evil-model"` passed the ord() check and `str.splitlines()`
+  yields the forged diff line. `_required_line` now additionally requires
+  `value.splitlines() == [value]` -> `source_unparseable` ("is not a single
+  line"); `_required_token` additionally refuses control characters that are
+  `\S` (e.g. NUL) via the shared `_refuse_control_chars` helper. Regression rows:
+  `reason_forges_via_unicode_line_separator`, `artifact_unicode_line_separator`,
+  `model_control_char_is_not_a_token` (bench table) and the
+  `reason_forges_via_unicode_line_separator` end-to-end propose row.
+- Fresh-eyes residual probes (transient script, run and deleted; results recorded
+  in the round-6 section of `harness/logs/debrief/gauntlet-g23.log`): U+2029 in a
+  token -> token refusal; NUL in a token -> control-char refusal; U+0085 in
+  `reason` -> "is not a single line"; whitespace-only `reason` -> accepted as
+  findings (cannot break out of its `why …: (…) — …` line); whitespace-only
+  `model` -> token refusal; graded dimension `a:b` -> rendering-only key
+  ambiguity (comparability compares `TaskSignature` dataclasses, never the key);
+  negative finite score -> accepted (ggufbench's pass verdict is authoritative);
+  `run.inspect` on a directory -> `run_source_missing` (no run log at that path,
+  the established non-regular direction); bench_path at a plain `results.json`
+  file -> `bench_source_missing` (contract promises a directory); positive
+  control unchanged.
+- Suite 72 -> 91 (19 regression rows over the two ordered findings + the
+  residual). Gates re-run end-to-end on the final code state and captured
+  verbatim by a transient self-deleting runner into
+  `harness/logs/debrief/batch-8.log` — six gates, every `[exit=0]`: init.sh
+  `[OK]` (feature_list valid, 4 features), pytest 91 passed, ruff check, ruff
+  format --check (45 files), mypy --strict (14 files), audit-security (no HIGH;
+  148 LOW-only bandit findings elided in the log with a pointer: B101
+  asserts-in-tests, B105 `PASS = "pass"` domain constant).
+- Install smoke re-run after the code change
+  (`harness/logs/debrief/install-smoke.log`): `uv sync` exit 0; `uv tool install
+  .` rebuilt `debrief==0.1.0` into a temp tool dir (cleaned up); raw JSON-RPC
+  over the installed binary: initialize / tools/list / tools/call bench.query ->
+  4 findings, `error: null`.
+- Demo transcript re-recorded with the fixed server
+  (`harness/logs/debrief/demo.log`, "demo assertions PASS"): S1/S2/S3 demos and
+  the R7 refusal unchanged in content; rounds 1–3 hostile probes re-verified;
+  new round-5 section: poisoned `model` (role-line and `models.yaml` vectors) ->
+  `source_unparseable` with `proposal: ""` and no `- `/`+ ` line in any answer;
+  poisoned `reason` -> "contains control characters"; `poisoned-separator`
+  (U+2029) -> "is not a single line" with no diff line; unreadable-parent run
+  log -> `source_unparseable` ("exists but cannot be probed"), never
+  `run_source_missing`.
+- `check-traceability.py --feature debrief` re-run -> 11/11, VERDICT PASS, saved
+  to `harness/specs/debrief/traceability.txt`; traceability rows R1/R6/R8–R11
+  updated to the round-5/6 evidence. APPROVAL Completion Gate refreshed to the
+  round-6 run.
+- Gauntlet re-run from G1: G1 PASS (`harness/logs/debrief/gauntlet-g1.log`);
+  G2+G3 fresh-eyes pass recorded in the round-6 section of
+  `harness/logs/debrief/gauntlet-g23.log` (fixed findings re-verified publicly,
+  the Unicode-separator finding caught and fixed, 10 residual probes, 3
+  defended); report `harness/progress/gauntlet_debrief.md` now has four round-6
+  PASS lines with the round-5 record kept below the separator.
+- Closure state: `harness/feature_list.json` restored to the reviewer-accepted
+  closure state (parent `debrief` = `done` + slice ids 2–4
+  `debrief_bench_query` / `debrief_run_inspect` / `debrief_role_propose`, each
+  `part_of: "debrief"`, `status: "pending"` — the checkout had lost them again
+  to the status-flip watcher); validator -> valid (4 features, inside init.sh);
+  T4 stays `[x]` in `harness/specs/debrief/tasks.md`; parent `done`.
