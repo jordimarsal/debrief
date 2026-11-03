@@ -1,0 +1,74 @@
+# APPROVAL — debrief_role_propose
+
+- human: (pending — the Completion Gate countersigns this record)
+- date: (pending)
+- gate: pending (`buildwright harness approve`)
+- comments: -
+
+## Demo note (recorded at T4, refs R1, R2, R5, R6, R7)
+
+Slice S3 role_propose, demoed end-to-end on the real stack: the debrief MCP
+stdio server answering `routing.propose` — a `BW_ROLE_*` diff as text composed
+from both ports' findings — serving proposals or structured errors and leaving
+every fixture byte-identical.
+
+- **Command** (worktree root; MCP stdio client `mcp.ClientSession` →
+  `initialize` → `tools/list` → `routing.propose`, transcript
+  `harness/logs/debrief_role_propose/demo.log`):
+
+  ```
+  DEBRIEF_BENCH_ROOT=$PWD/tests/fixtures/ggufbench \
+  DEBRIEF_RUN_ROOT=$PWD/tests/fixtures/buildwright uv run debrief
+  ```
+
+  then `routing.propose {"bench_path": "run-2026-11-01", "run_path":
+  "run-2026-11-02T09-14Z.log"}` (and seven further calls below).
+
+- **Observed output** (the full BW_ROLE_* diff as text, `error: null`):
+
+  ```
+  proposal: BW_ROLE_WORKER holds qwen2.5-7b-instruct-q4_k_m, which failed task sql-join
+  - BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m
+  + BW_ROLE_WORKER=llama-3.1-8b-instruct-q4_k_m
+  why run: qwen2.5-7b-instruct-q4_k_m failed sql-join (patch pushes the join to 41 rows against a graded limit of 40) — r-2026-11-02T09-14Z/worker.patch
+  why bench: llama-3.1-8b-instruct-q4_k_m passed sql-join at score 0.86 (all three dimensions above the pass mark) — run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript
+  signature: joins:40,limits:10,syntax:20@b4937-graded-baseline@llama.cpp-b4937
+  not applied: debrief never writes; paste the + line into the buildwright role env (ADR-0001). Proposals target roles, never models.yaml (ADR-0003).
+  ```
+
+  Both ports compose into one answer (R5): the run port supplies the failed
+  step and its role, the bench port supplies the winner — every `- `/`+ `
+  line targets a `BW_ROLE_*` role, and `models.yaml` appears only inside the
+  fixed `not applied:` prose (R6).
+
+- **Structured errors, never crashes** (R1, R7) — the remaining seven calls:
+
+  | call | answered |
+  |---|---|
+  | `routing.propose {"bench_path": ".", "run_path": "run-2026-11-02T09-14Z.log"}` | `incomparable_rows` naming both baselines (`b4937-graded-baseline`, `b4945-graded-baseline`), `proposal: ""` — no winner, no average |
+  | `routing.propose {"bench_path": "../pyproject.toml", …}` | `path_outside_root` (bench traversal refused before either port is read) |
+  | `routing.propose {"run_path": "run-2026-11-02T09-14Z.log\u0000"}` | `path_outside_root` (embedded NUL refused) |
+  | `routing.propose {"bench_path": "does-not-exist", …}` | `bench_source_missing` |
+  | `routing.propose {"run_path": "does-not-exist.log", …}` | `run_source_missing` |
+  | `routing.propose {"run_path": "run-2026-11-03T10-00Z.log"}` | not an error: the literal `no proposal: every logged step passed` |
+  | session 2 (`DEBRIEF_BENCH_ROOT=tests/fixtures/ggufbench_broken`): `routing.propose {"bench_path": "nonfinite-score-nan", …}` | `source_unparseable` (`score is not a finite number: nan`); the poisoned row's model reaches no answer |
+
+- **No writes while serving** (R2) — all 26 files under `tests/fixtures/`
+  (ggufbench, ggufbench_broken, buildwright) were fingerprinted before serving
+  (size, `st_mtime_ns`, sha256) and re-checked after both MCP sessions closed:
+  `byte-identical (size+mtime_ns+sha256): True`. The same proof runs as the
+  regression test
+  `tests/test_propose.py::test_serving_routing_propose_leaves_the_slice_fixtures_byte_identical`
+  (probe-verified teeth: an mtime-only `touch` and a content change each flip
+  the fingerprint on a fixture copy), and the slice's read path carries no
+  write-mode open (`tests/test_propose.py::test_routing_propose_read_path_has_no_write_mode_open_or_mutation`,
+  with its own flag-every-write-shape teeth table — bound `path.open('w')`,
+  builtin `open(path, 'wb')`, keyword/non-literal modes, mutating calls,
+  `shutil` import).
+
+- **Mechanical gates on the same state** (`harness/logs/debrief_role_propose/batch-1.log`):
+  ruff check, ruff format --check, mypy --strict, `uv run pytest tests`
+  (144 passed), `bash harness/tools/audit-security.sh` (no HIGH findings),
+  `bash harness/tools/gauntlet.sh --feature debrief_role_propose` (G1 PASS)
+  and `bash harness/init.sh` all exit 0, final line `[OK]`; traceability 5/5
+  (`harness/specs/debrief_role_propose/traceability.txt`).

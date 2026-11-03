@@ -162,6 +162,24 @@ def test_existing_run_log_behind_unreadable_parent_is_unparseable_not_missing(
     assert answer.code == SOURCE_UNPARSEABLE
 
 
+def test_log_path_through_a_regular_file_parent_refuses_as_missing_not_crashing(
+    tmp_path: Path,
+) -> None:
+    """The `findings()` clause catches both `FileNotFoundError` and
+    `NotADirectoryError`: a log whose parent component is a regular file raises
+    the latter on stat(), and the adapter answers a structured refusal — never
+    the raw exception (R1)."""
+    parent = tmp_path / "collide"
+    parent.write_text("a regular file where the run root would be", encoding="utf-8")
+
+    answer = InspectRun(BuildwrightLog(parent / "run-2026-11-02T09-14Z.log")).run()
+
+    assert isinstance(answer, DebriefError)
+    assert answer.code == RUN_SOURCE_MISSING
+    assert answer.message
+    assert answer.detail
+
+
 def test_headers_only_run_log_refuses_as_unparseable(tmp_path: Path) -> None:
     log_file = tmp_path / "run-headers-only.log"
     log_file.write_text(

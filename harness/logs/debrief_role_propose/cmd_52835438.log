@@ -1,0 +1,163 @@
+id="bench_path_names_a_run_log_outside_the_bench_root",
+        ),
+        pytest.param(
+            "run-2026-11-01",
+            "../ggufbench/run-2026-11-01/results.json",
+            "resolves outside",
+            id="run_path_names_a_bench_artifact_outside_the_run_root",
+        ),
+    ],
+)
+def test_routing_propose_tool_refuses_paths_outside_the_roots(
+    proposal_env: None, bench_path: str, run_path: str, detail_names: str
+) -> None:
+    """Traversal in either argument refuses as `path_outside_root` before either
+    port is read — including the cross-port rows: a bench path pointing at a run
+    log and a run path pointing at a bench artifact never resolve (ADR-0002 at
+    the path layer)."""
+    response = routing_propose(bench_path, run_path)
+
+    assert response.proposal == ""
+    assert response.error is not None
+    assert response.error.code == PATH_OUTSIDE_ROOT
+    assert response.error.message
+    assert detail_names in response.error.detail
+    assert bench_path in response.error.detail or run_path in response.error.detail
+
+
+SLICE_FIXTURE_ROOTS = (BENCH_ROOT, BROKEN_ROOT, RUN_LOGS)
+
+
+def _slice_fixture_fingerprint() -> dict[str, tuple[int, int, str]]:
+    return {
+        str(path): (
+            path.stat().st_size,
+            path.stat().st_mtime_ns,
+            hashlib.sha256(path.read_bytes()).hexdigest(),
+        )
+        for root in SLICE_FIXTURE_ROOTS
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def test_serving_routing_propose_leaves_the_slice_fixtures_byte_identical(
+    proposal_env: None,
+) -> None:
+    """R2: every debrief answer is printable text, so serving the tool — proposal,
+    all-passed text, and refusals on both ports — may not touch a byte or a
+    timestamp of the evidence it read."""
+    before = _slice_fixture_fingerprint()
+    assert len(before) >= 20
+
+    proposal = routing_propose("run-2026-11-01", "run-2026-11-02T09-14Z.log")
+    spanning = routing_propose(".", "run-2026-11-02T09-14Z.log")
+    all_passed = routing_propose("run-2026-11-01", "run-2026-11-03T10-00Z.log")
+    missing_bench = routing_propose("does-not-exist", "run-2026-11-02T09-14Z.log")
+    missing_run = routing_propose("run-2026-11-01", "does-not-exist.log")
+    poisoned = propose(BROKEN_ROOT / "nonfinite-score-nan", SQL_JOIN_LOG)
+
+    assert proposal.error is None
+    assert "+ BW_ROLE_WORKER=" in proposal.proposal
+    assert spanning.error is not None and spanning.error.code == INCOMPARABLE_ROWS
+    assert all_passed.proposal == "no proposal: every logged step passed"
+    assert missing_bench.error is not None and missing_bench.error.code == BENCH_SOURCE_MISSING
+    assert missing_run.error is not None and missing_run.error.code == RUN_SOURCE_MISSING
+    assert isinstance(poisoned, DebriefError)
+    assert poisoned.code == SOURCE_UNPARSEABLE
+    assert _slice_fixture_fingerprint() == before
+
+
+=====WRITE_GATE=====
+READ_PATH_MODULES = (
+    "adapters/ggufbench_store.py",
+    "adapters/buildwright_log.py",
+    "use_cases.py",
+    "mcp_server.py",
+)
+WRITE_MODE_CHARS = frozenset("wxa+")
+MUTATING_CALLS = frozenset(
+    {
+        "write_text",
+        "write_bytes",
+        "unlink",
+        "mkdir",
+        "rename",
+        "replace",
+        "remove",
+        "rmdir",
+        "rmtree",
+        "touch",
+        "truncate",
+        "chmod",
+    }
+)
+WRITE_MODULES = frozenset({"shutil"})
+
+
+def _called_name(func: ast.AST) -> str | None:
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def _opens_for_writing(call: ast.Call, method_form: bool) -> bool:
+    """Whether an open() call carries a write mode. A `mode=` keyword wins over
+    either positional slot; the bound method form (`path.open('w')`) keeps the
+    mode in slot 0, the builtin (`open(path, 'w')`) in slot 1. A non-literal
+    mode cannot be proven read-only at this gate, so it counts as an offender
+    rather than passing silently."""
+    mode: ast.AST | None = None
+    for keyword in call.keywords:
+        if keyword.arg == "mode":
+            mode = keyword.value
+    if mode is None:
+        if method_form and len(call.args) == 1:
+            mode = call.args[0]
+        elif len(call.args) > 1:
+            mode = call.args[1]
+    if not isinstance(mode, ast.Constant) or not isinstance(mode.value, str):
+        return mode is not None
+    return bool(WRITE_MODE_CHARS & set(mode.value))
+
+
+def _write_offenses(relative: str, tree: ast.AST) -> list[str]:
+    offenses: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and any(
+            alias.name in WRITE_MODULES for alias in node.names
+        ):
+            offenses.append(f"{relative} imports a filesystem-write module")
+        elif isinstance(node, ast.ImportFrom) and node.module in WRITE_MODULES:
+            offenses.append(f"{relative} imports a filesystem-write module")
+        elif isinstance(node, ast.Call):
+            name = _called_name(node.func)
+            if name == "open" and _opens_for_writing(node, isinstance(node.func, ast.Attribute)):
+                offenses.append(f"{relative} opens a file in a write mode")
+            elif name in MUTATING_CALLS:
+                offenses.append(f"{relative} calls {name}()")
+    return offenses
+
+
+@pytest.mark.parametrize(
+    ("snippet", "offense_part"),
+    [
+        pytest.param("path.open('w')", "opens a file in a write mode", id="write_mode"),
+        pytest.param("open(path, 'wb')", "opens a file in a write mode", id="write_mode_builtin"),
+        pytest.param(
+            "path.open(mode='a')", "opens a file in a write mode", id="append_mode_keyword"
+        ),
+        pytest.param(
+            "path.open(mode)", "opens a file in a write mode", id="non_literal_mode_is_an_offender"
+        ),
+        pytest.param("path.write_text('x')", "calls write_text()", id="write_text"),
+        pytest.param("path.write_bytes(b'x')", "calls write_bytes()", id="write_bytes"),
+        pytest.param("path.unlink()", "calls unlink()", id="unlink"),
+        pytest.param("path.mkdir()", "calls mkdir()", id="mkdir"),
+        pytest.param("path.replace(other)", "calls replace()", id="replace"),
+        pytest.param("import shutil", "imports a filesystem-write module", id="shutil_import"),
+    ],
+)
+def test_the_slice_write_gate_flags_every_write_shape(snippet: str, offense_part: str) -> None:

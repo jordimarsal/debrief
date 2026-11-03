@@ -1,0 +1,162 @@
+1d1aba4
+
+diff --git a/harness/specs/debrief_run_inspect/APPROVAL b/harness/specs/debrief_run_inspect/APPROVAL
+index fc83aa4..00a52ba 100644
+--- a/harness/specs/debrief_run_inspect/APPROVAL
++++ b/harness/specs/debrief_run_inspect/APPROVAL
+@@ -1,72 +1,6 @@
+ # APPROVAL — debrief_run_inspect
+ 
+-- human: (pending — the Completion Gate countersigns this record)
+-- date: (pending)
+-- gate: pending (`buildwright harness approve`)
++- human: jordi
++- date: 2026-11-03
++- gate: completion gate (`buildwright harness approve`)
+ - comments: -
+-
+-## Demo note (recorded at T4, refs R1, R2, R4)
+-
+-Slice S2 run_inspect, demoed end-to-end on the real stack: the debrief MCP
+-stdio server answering `run.inspect` from a real buildwright run log, serving
+-findings or a structured error and leaving every fixture byte-identical.
+-
+-- **Command** (worktree root; MCP stdio client `mcp.ClientSession` →
+-  `initialize` → `tools/list` → `run.inspect`, transcript
+-  `harness/logs/debrief_run_inspect/demo.log`):
+-
+-  ```
+-  DEBRIEF_RUN_ROOT=$PWD/tests/fixtures/buildwright uv run debrief
+-  ```
+-
+-  then `run.inspect {"path": "run-2026-11-02T09-14Z.log"}` (and five further
+-  calls below).
+-
+-- **Observed output** (abridged; full JSON in the transcript):
+-
+-  ```json
+-  {
+-    "findings": [
+-      {"model": "llama-3.2-3b-instruct-q4_k_m", "task": "sql-join", "outcome": "pass",
+-       "reason": "plan covers every graded dimension",
+-       "evidence": "r-2026-11-02T09-14Z/planner.md", "signature": null,
+-       "measure": null, "role": "planner"},
+-      {"model": "qwen2.5-7b-instruct-q4_k_m", "task": "sql-join", "outcome": "fail",
+-       "reason": "patch pushes the join to 41 rows against a graded limit of 40",
+-       "evidence": "r-2026-11-02T09-14Z/worker.patch", "signature": null,
+-       "measure": null, "role": "worker"},
+-      {"model": "phi-3.5-mini-instruct-q4_k_m", "task": "sql-join", "outcome": "pass",
+-       "reason": "verdict returned after two prompts",
+-       "evidence": "r-2026-11-02T09-14Z/reviewer.md", "signature": null,
+-       "measure": null, "role": "reviewer"}
+-    ],
+-    "error": null
+-  }
+-  ```
+-
+-  Run findings come only from that one buildwright run log (R4): the `task:`
+-  header names `sql-join`, each `step:` line maps to one Finding, and
+-  `signature`/`measure` stay `null` (an episode is not a measurement).
+-
+-- **Structured errors, never crashes** (R1) — the remaining five calls:
+-
+-  | call | answered |
+-  |---|---|
+-  | `run.inspect {"path": "run-2026-11-03T10-00Z.log"}` | 1 pass finding (worker, regex-extract), `error: null` |
+-  | `run.inspect {"path": "run-truncated.log"}` | `{"findings": [], "error": {"code": "source_unparseable", "detail": "malformed step line: …"}}` |
+-  | `run.inspect {"path": "run-bad-outcome-FAIL.log"}` | `{"findings": [], "error": {"code": "source_unparseable", "detail": "outcome is not one of ['fail', 'pass']: 'FAIL'"}}` |
+-  | `run.inspect {"path": "does-not-exist.log"}` | `{"findings": [], "error": {"code": "run_source_missing", …}}` |
+-  | `run.inspect {"path": "run-2026-11-02T09-14Z.log\u0000"}` | `{"findings": [], "error": {"code": "path_outside_root", …}}` |
+-
+-- **No writes while serving** (R2) — all 9 files under
+-  `tests/fixtures/buildwright` were fingerprinted before serving
+-  (size, `st_mtime_ns`, sha256) and re-checked after the MCP session closed:
+-  `byte-identical (size+mtime_ns+sha256): True`. The same proof runs as the
+-  regression test `tests/test_run.py::test_serving_run_inspect_leaves_the_run_fixtures_byte_identical`,
+-  and the slice's read path carries no write-mode open
+-  (`tests/test_run.py::test_run_inspect_read_path_has_no_write_mode_open_or_mutation`).
+-
+-- **Mechanical gates on the same state** (`harness/logs/debrief_run_inspect/batch-2.log`):
+-  ruff check, ruff format --check, mypy --strict, `uv run pytest tests`
+-  (108 passed) and `bash harness/init.sh` all exit 0, final line `[OK]`;
+-  traceability 3/3 (`harness/specs/debrief_run_inspect/traceability.txt`).
+4600173
+
+diff --git a/harness/specs/debrief_run_inspect/APPROVAL b/harness/specs/debrief_run_inspect/APPROVAL
+new file mode 100644
+index 0000000..fc83aa4
+--- /dev/null
++++ b/harness/specs/debrief_run_inspect/APPROVAL
+@@ -0,0 +1,72 @@
++# APPROVAL — debrief_run_inspect
++
++- human: (pending — the Completion Gate countersigns this record)
++- date: (pending)
++- gate: pending (`buildwright harness approve`)
++- comments: -
++
++## Demo note (recorded at T4, refs R1, R2, R4)
++
++Slice S2 run_inspect, demoed end-to-end on the real stack: the debrief MCP
++stdio server answering `run.inspect` from a real buildwright run log, serving
++findings or a structured error and leaving every fixture byte-identical.
++
++- **Command** (worktree root; MCP stdio client `mcp.ClientSession` →
++  `initialize` → `tools/list` → `run.inspect`, transcript
++  `harness/logs/debrief_run_inspect/demo.log`):
++
++  ```
++  DEBRIEF_RUN_ROOT=$PWD/tests/fixtures/buildwright uv run debrief
++  ```
++
++  then `run.inspect {"path": "run-2026-11-02T09-14Z.log"}` (and five further
++  calls below).
++
++- **Observed output** (abridged; full JSON in the transcript):
++
++  ```json
++  {
++    "findings": [
++      {"model": "llama-3.2-3b-instruct-q4_k_m", "task": "sql-join", "outcome": "pass",
++       "reason": "plan covers every graded dimension",
++       "evidence": "r-2026-11-02T09-14Z/planner.md", "signature": null,
++       "measure": null, "role": "planner"},
++      {"model": "qwen2.5-7b-instruct-q4_k_m", "task": "sql-join", "outcome": "fail",
++       "reason": "patch pushes the join to 41 rows against a graded limit of 40",
++       "evidence": "r-2026-11-02T09-14Z/worker.patch", "signature": null,
++       "measure": null, "role": "worker"},
++      {"model": "phi-3.5-mini-instruct-q4_k_m", "task": "sql-join", "outcome": "pass",
++       "reason": "verdict returned after two prompts",
++       "evidence": "r-2026-11-02T09-14Z/reviewer.md", "signature": null,
++       "measure": null, "role": "reviewer"}
++    ],
++    "error": null
++  }
++  ```
++
++  Run findings come only from that one buildwright run log (R4): the `task:`
++  header names `sql-join`, each `step:` line maps to one Finding, and
++  `signature`/`measure` stay `null` (an episode is not a measurement).
++
++- **Structured errors, never crashes** (R1) — the remaining five calls:
++
++  | call | answered |
++  |---|---|
++  | `run.inspect {"path": "run-2026-11-03T10-00Z.log"}` | 1 pass finding (worker, regex-extract), `error: null` |
++  | `run.inspect {"path": "run-truncated.log"}` | `{"findings": [], "error": {"code": "source_unparseable", "detail": "malformed step line: …"}}` |
++  | `run.inspect {"path": "run-bad-outcome-FAIL.log"}` | `{"findings": [], "error": {"code": "source_unparseable", "detail": "outcome is not one of ['fail', 'pass']: 'FAIL'"}}` |
++  | `run.inspect {"path": "does-not-exist.log"}` | `{"findings": [], "error": {"code": "run_source_missing", …}}` |
++  | `run.inspect {"path": "run-2026-11-02T09-14Z.log\u0000"}` | `{"findings": [], "error": {"code": "path_outside_root", …}}` |
++
++- **No writes while serving** (R2) — all 9 files under
++  `tests/fixtures/buildwright` were fingerprinted before serving
++  (size, `st_mtime_ns`, sha256) and re-checked after the MCP session closed:
++  `byte-identical (size+mtime_ns+sha256): True`. The same proof runs as the
++  regression test `tests/test_run.py::test_serving_run_inspect_leaves_the_run_fixtures_byte_identical`,
++  and the slice's read path carries no write-mode open
++  (`tests/test_run.py::test_run_inspect_read_path_has_no_write_mode_open_or_mutation`).
++
++- **Mechanical gates on the same state** (`harness/logs/debrief_run_inspect/batch-2.log`):
++  ruff check, ruff format --check, mypy --strict, `uv run pytest tests`
++  (108 passed) and `bash harness/init.sh` all exit 0, final line `[OK]`;
++  traceability 3/3 (`harness/specs/debrief_run_inspect/traceability.txt`).

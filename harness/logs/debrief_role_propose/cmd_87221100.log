@@ -1,0 +1,148 @@
+),
+        pytest.param(
+            "result: fail failed_steps=",
+            "failed_steps is empty",
+            id="empty_failed_steps_list",
+        ),
+        pytest.param(
+            "result: timeout failed_steps=02",
+            "timeout",
+            id="header_outcome_outside_the_enum",
+        ),
+        pytest.param(
+            "result: fail failed_steps=02 extra",
+            "malformed result",
+            id="malformed_header",
+        ),
+    ],
+)
+def test_result_header_contradicting_the_logged_steps_refuses_the_log(
+    tmp_path: Path, result_line: str, detail_token: str
+) -> None:
+    answer = InspectRun(
+        BuildwrightLog(_log_with_result(tmp_path, "contradicted.log", result_line))
+    ).run()
+
+    assert isinstance(answer, DebriefError)
+    assert answer.code == SOURCE_UNPARSEABLE
+    assert detail_token in answer.detail
+
+
+def test_result_header_agreeing_with_the_logged_steps_still_parses(tmp_path: Path) -> None:
+    answer = InspectRun(
+        BuildwrightLog(_log_with_result(tmp_path, "consistent.log", "result: fail failed_steps=02"))
+    ).run()
+
+    assert isinstance(answer, list)
+    assert [row.outcome for row in answer] == [PASS, FAIL]
+
+
+def test_failed_steps_without_zero_padding_still_matches_the_logged_step(tmp_path: Path) -> None:
+    answer = InspectRun(
+        BuildwrightLog(_log_with_result(tmp_path, "unpadded.log", "result: fail failed_steps=2"))
+    ).run()
+
+    assert isinstance(answer, list)
+    assert [row.outcome for row in answer] == [PASS, FAIL]
+
+
+def _fixture_fingerprint(root: Path) -> dict[str, tuple[int, int, str]]:
+    return {
+        str(path.relative_to(root)): (
+            path.stat().st_size,
+            path.stat().st_mtime_ns,
+            hashlib.sha256(path.read_bytes()).hexdigest(),
+        )
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def test_serving_run_inspect_leaves_the_run_fixtures_byte_identical(run_env: None) -> None:
+    before = _fixture_fingerprint(RUN_LOGS)
+    assert len(before) >= 8
+
+    broken = run_inspect("run-2026-11-02T09-14Z.log")
+    passing = run_inspect("run-2026-11-03T10-00Z.log")
+    refused = run_inspect("run-truncated.log")
+
+    assert broken.error is None
+    assert [row.role for row in broken.findings] == ["planner", "worker", "reviewer"]
+    assert passing.error is None
+    assert refused.error is not None
+    assert refused.error.code == SOURCE_UNPARSEABLE
+    assert _fixture_fingerprint(RUN_LOGS) == before
+
+
+READ_PATH_MODULES = ("adapters/buildwright_log.py", "use_cases.py", "mcp_server.py")
+WRITE_MODE_CHARS = frozenset("wxa+")
+MUTATING_CALLS = frozenset(
+    {
+        "write_text",
+        "write_bytes",
+        "unlink",
+        "mkdir",
+        "rename",
+        "replace",
+        "remove",
+        "rmdir",
+        "rmtree",
+        "touch",
+        "truncate",
+        "chmod",
+    }
+)
+WRITE_MODULES = frozenset({"shutil"})
+
+
+def _called_name(func: ast.AST) -> str | None:
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return None
+
+
+def _opens_for_writing(call: ast.Call) -> bool:
+    mode: ast.AST | None = None
+    for keyword in call.keywords:
+        if keyword.arg == "mode":
+            mode = keyword.value
+    if mode is None and len(call.args) > 1:
+        mode = call.args[1]
+    if not isinstance(mode, ast.Constant) or not isinstance(mode.value, str):
+        # A non-literal mode cannot be proven read-only at this gate, so it counts
+        # as an offender rather than passing silently.
+        return mode is not None
+    return bool(WRITE_MODE_CHARS & set(mode.value))
+
+
+def _write_offenses(relative: str, tree: ast.AST) -> list[str]:
+    offenses: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import) and any(
+            alias.name in WRITE_MODULES for alias in node.names
+        ):
+            offenses.append(f"{relative} imports a filesystem-write module")
+        elif isinstance(node, ast.ImportFrom) and node.module in WRITE_MODULES:
+            offenses.append(f"{relative} imports a filesystem-write module")
+        elif isinstance(node, ast.Call):
+            name = _called_name(node.func)
+            if name == "open" and _opens_for_writing(node):
+                offenses.append(f"{relative} opens a file in a write mode")
+            elif name in MUTATING_CALLS:
+                offenses.append(f"{relative} calls {name}()")
+    return offenses
+
+
+def test_run_inspect_read_path_has_no_write_mode_open_or_mutation() -> None:
+    package = Path(__file__).parents[1] / "src" / "debrief"
+    offenses = [
+        offense
+        for relative in READ_PATH_MODULES
+        for offense in _write_offenses(
+            relative, ast.parse((package / relative).read_text(encoding="utf-8"))
+        )
+    ]
+
+    assert offenses == []
