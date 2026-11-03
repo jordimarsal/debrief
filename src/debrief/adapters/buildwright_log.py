@@ -19,6 +19,11 @@ from debrief.errors import RUN_SOURCE_MISSING, SOURCE_UNPARSEABLE, DebriefError
 
 log = logging.getLogger(__name__)
 
+# A named tuple, not an inline `except (A, B):`: ruff format (target py314) rewrites
+# the inline spelling towards the PEP 758 bare-comma form, which this repo's review
+# rejected; the named tuple keeps one spelling that is valid on every Python 3.
+_MISSING_PATH_ERRORS = (FileNotFoundError, NotADirectoryError)
+
 _STEP_RE = re.compile(
     r"^step:\s*(?P<ordinal>\d+)\s+"
     r"role=(?P<role>\S+)\s+"
@@ -62,7 +67,7 @@ class BuildwrightLog:
         # tool never silently drops a source it was asked to read.
         try:
             st = self._log_file.stat()
-        except (FileNotFoundError, NotADirectoryError):
+        except _MISSING_PATH_ERRORS:
             return DebriefError(
                 code=RUN_SOURCE_MISSING,
                 message="no buildwright run log at the requested path",

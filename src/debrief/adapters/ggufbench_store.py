@@ -21,6 +21,11 @@ log = logging.getLogger(__name__)
 
 RESULTS_FILE = "results.json"
 
+# A named tuple, not an inline `except (A, B):`: ruff format (target py314) rewrites
+# the inline spelling towards the PEP 758 bare-comma form, which this repo's review
+# rejected; the named tuple keeps one spelling that is valid on every Python 3.
+_MISSING_PATH_ERRORS = (FileNotFoundError, NotADirectoryError)
+
 # Artifact string fields reach the routing.propose text verbatim, so a newline
 # in a poisoned row could forge arbitrary proposal diff lines (ADR-0004
 # fabrication class). Identifier-like fields must be single-line whitespace-free
@@ -123,7 +128,7 @@ def _contained_results(root: Path, candidate: Path) -> Path | None:
 def _is_regular_file(path: Path) -> bool:
     try:
         return stat.S_ISREG(path.stat().st_mode)
-    except (FileNotFoundError, NotADirectoryError):
+    except _MISSING_PATH_ERRORS:
         return False
 
 

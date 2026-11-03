@@ -226,3 +226,65 @@ dispatch; the two G2/G3 findings surfaced by the fresh-eyes pass are defended, n
     resolved dependency set ships via `uv.lock` from official registries.
   - No MEDIUM or HIGH findings from automated tools (grep of the report: 0 matches).
 - Result: **PASS** (no HIGH findings; all LOW findings waived above with rationale).
+
+---
+
+## Dispatch 4 (round-2 fix): the flagged "invalid except syntax" vs the py314 formatter gate
+
+**Situation found:** review round 2 asked to replace the bare multi-name except at
+`src/debrief/adapters/ggufbench_store.py:126` with the parenthesized form, then re-run
+the gates. The branch already carried exactly that parenthesized fix (commit ab43153) —
+and with it in the tree, the documented `ruff format` gate (conventions.md: "`ruff
+check`, `ruff format` and `mypy --strict` are gates") **failed**: `ruff format --check .`
+reported "2 files would be reformatted", rewriting `except (A, B):` → `except A, B:` in
+`ggufbench_store.py:126` and `buildwright_log.py:65`. Reason: pyproject pins
+`target-version = "py314"`, and ruff 0.17.3 formats inline except tuples towards the
+PEP 758 bare-comma spelling. So the reviewer's literal fix and the gate battery are
+mutually exclusive; I gathered evidence before choosing a resolution.
+
+**Evidence (all run this session, see `harness/logs/debrief_bench_query/batch-4.log`):**
+- Pinned interpreter is CPython 3.14.7 (`.python-version` = 3.14, `requires-python =
+  ">=3.14"` — deployment cannot run below 3.14). Empirical: `compile("except ValueError,
+  TypeError: ...")` is **accepted** — PEP 758 (shipped in Python 3.14) re-allowed bare
+  multi-name excepts; they were a SyntaxError only on 3.0–3.13. The review's premise
+  ("invalid on stock CPython including the pinned 3.14; package unimportable") does not
+  hold for this repo's toolchain — the bare form compiles, imports and runs here, and
+  `uv run pytest tests` (150 passed) exercises those code paths through real fixtures.
+- Nonetheless the review's underlying intent — no syntax that any reviewer or runtime
+  could misread as Python 2, package importable everywhere — is worth honoring.
+
+**Fix applied (satisfies both the review and every gate; no test/config changes):**
+- `src/debrief/adapters/ggufbench_store.py` — new module constant
+  `_MISSING_PATH_ERRORS = (FileNotFoundError, NotADirectoryError)` (one why-comment);
+  `_is_regular_file` now catches `except _MISSING_PATH_ERRORS:`.
+- `src/debrief/adapters/buildwright_log.py` — same constant + same catch at the `stat()`
+  probe (the second file `ruff format --check` flagged; leaving it meant the gate stayed
+  red). Same-package, same 2-line pattern.
+- Net effect: no bare-comma except syntax anywhere under `src/` (grep-verified), no
+  inline except tuple for the py314 formatter to unwrap, identical semantics on every
+  Python 3.x including <3.14 — strictly stronger than the requested parens.
+
+**Files touched by this dispatch:** the two adapters above;
+`harness/specs/debrief_bench_query/traceability.txt` (refreshed, PASS 3/3);
+`harness/logs/debrief_bench_query/batch-4.log` (gate + syntax evidence);
+`harness/progress/impl_debrief_bench_query.md` (this section). `tasks.md` unchanged —
+T4 was already `[x]`; gates re-verified green below.
+
+### Gates (all green, exit=0)
+- `uv run pytest tests` → **150 passed** in 0.48s.
+- `uv run ruff check .` → All checks passed!
+- `uv run ruff format --check .` → 63 files already formatted.
+- `uv run mypy --strict` → Success: no issues found in 14 source files.
+- `uv run python -m compileall -q src/debrief tests` → clean; package import proof OK
+  (ggufbench_store, buildwright_log, mcp_server).
+- `bash harness/init.sh` → final line `[OK]`.
+- `uv run python harness/tools/check-traceability.py --feature debrief_bench_query .` →
+  PASS, 3/3 requirements covered (saved in the feature directory).
+
+### Traceability (merged table for check-traceability.py)
+
+| Requirement | Test(s) | Implementation file(s) | Status |
+|---|---|---|---|
+| R1 | test_bench_query_tool_answers_within_the_allowed_root, test_query_bench_refuses_with_structured_error, test_bench_query_tool_refuses_paths_outside_the_root, test_bench_query_tool_refuses_a_symlink_escaping_below_the_requested_path | src/debrief/errors.py, src/debrief/use_cases.py, src/debrief/mcp_server.py | done |
+| R2 | test_no_debrief_module_contains_a_write_path, test_bench_query_leaves_the_artifact_tree_byte_identical, test_bench_query_symlink_escape_refusal_writes_nothing_either | src/debrief/mcp_server.py, src/debrief/adapters/ggufbench_store.py | done |
+| R3 | test_query_bench_answers_from_real_artifact_root, test_bench_row_carries_measure_signature_and_evidence_from_the_artifact, test_symlinked_results_file_outside_the_root_refuses_the_scan, test_symlinked_results_file_inside_the_root_is_still_read | src/debrief/ports.py, src/debrief/adapters/ggufbench_store.py, src/debrief/domain.py | done |

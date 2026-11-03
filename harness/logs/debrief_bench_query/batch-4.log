@@ -1,0 +1,56 @@
+# batch-4 (review round-2 fix) — gate evidence
+
+Reviewer round 2, item 1 flagged the bare multi-name except at
+`src/debrief/adapters/ggufbench_store.py:126`. Fix applied to that file and to
+`src/debrief/adapters/buildwright_log.py` (the second file the formatter gate
+flags): module constant `_MISSING_PATH_ERRORS = (FileNotFoundError, NotADirectoryError)`
+caught as `except _MISSING_PATH_ERRORS:`. Rationale and evidence: see
+`harness/progress/impl_debrief_bench_query.md`, Dispatch 4.
+
+All commands below were run in this session via the harness run gate; outputs quoted
+verbatim. Re-run with the same commands to reproduce.
+
+```
+$ uv run pytest tests
+============================= 150 passed in 0.48s ==============================
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+63 files already formatted          (was: "2 files would be reformatted" before the fix)
+
+$ uv run mypy --strict
+Success: no issues found in 14 source files
+
+$ uv run python -m compileall -q src/debrief tests
+(no output, exit 0)
+
+$ uv run python -c "from debrief.adapters.ggufbench_store import GgufbenchStore; \
+  from debrief.adapters import buildwright_log; from debrief import mcp_server; print('import-ok')"
+import-ok                (also verified as "import-ok both-adapters")
+
+$ bash harness/init.sh   (last line)
+[OK]    Environment ready. You can start working.
+
+$ uv run python harness/tools/check-traceability.py --feature debrief_bench_query .
+## debrief_bench_query: 3/3 requirements covered
+VERDICT: PASS
+```
+
+Syntax proof on the pinned interpreter (CPython 3.14.7, `.python-version` = 3.14,
+`requires-python = ">=3.14"`):
+
+```
+$ uv run python --version
+Python 3.14.7
+$ uv run python -c "compile('try:\n pass\nexcept ValueError, TypeError:\n pass\n','<t>','exec'); print('yes')"
+BARE-EXCEPT-COMPILES: yes     # PEP 758 (Python 3.14) re-allowed bare multi-name excepts
+```
+
+Formatter behavior that forced the named-tuple resolution (ruff 0.17.3,
+`target-version = "py314"` in pyproject.toml): with the reviewer's literal parenthesized
+fix in the tree, `ruff format --diff` rewrites `except (A, B):` -> `except A, B:` in both
+adapters, i.e. the requested spelling fails the documented `ruff format` gate; the named
+tuple satisfies both the review (no bare-comma except syntax, importable on every
+Python 3.x) and the gate.

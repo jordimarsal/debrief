@@ -1,0 +1,108 @@
+diff --git a/harness/progress/impl_debrief_bench_query.md b/harness/progress/impl_debrief_bench_query.md
+index 913e68d..276a28b 100644
+--- a/harness/progress/impl_debrief_bench_query.md
++++ b/harness/progress/impl_debrief_bench_query.md
+@@ -226,3 +226,65 @@ dispatch; the two G2/G3 findings surfaced by the fresh-eyes pass are defended, n
+     resolved dependency set ships via `uv.lock` from official registries.
+   - No MEDIUM or HIGH findings from automated tools (grep of the report: 0 matches).
+ - Result: **PASS** (no HIGH findings; all LOW findings waived above with rationale).
++
++---
++
++## Dispatch 4 (round-2 fix): the flagged "invalid except syntax" vs the py314 formatter gate
++
++**Situation found:** review round 2 asked to replace the bare multi-name except at
++`src/debrief/adapters/ggufbench_store.py:126` with the parenthesized form, then re-run
++the gates. The branch already carried exactly that parenthesized fix (commit ab43153) —
++and with it in the tree, the documented `ruff format` gate (conventions.md: "`ruff
++check`, `ruff format` and `mypy --strict` are gates") **failed**: `ruff format --check .`
++reported "2 files would be reformatted", rewriting `except (A, B):` → `except A, B:` in
++`ggufbench_store.py:126` and `buildwright_log.py:65`. Reason: pyproject pins
++`target-version = "py314"`, and ruff 0.17.3 formats inline except tuples towards the
++PEP 758 bare-comma spelling. So the reviewer's literal fix and the gate battery are
++mutually exclusive; I gathered evidence before choosing a resolution.
++
++**Evidence (all run this session, see `harness/logs/debrief_bench_query/batch-4.log`):**
++- Pinned interpreter is CPython 3.14.7 (`.python-version` = 3.14, `requires-python =
++  ">=3.14"` — deployment cannot run below 3.14). Empirical: `compile("except ValueError,
++  TypeError: ...")` is **accepted** — PEP 758 (shipped in Python 3.14) re-allowed bare
++  multi-name excepts; they were a SyntaxError only on 3.0–3.13. The review's premise
++  ("invalid on stock CPython including the pinned 3.14; package unimportable") does not
++  hold for this repo's toolchain — the bare form compiles, imports and runs here, and
++  `uv run pytest tests` (150 passed) exercises those code paths through real fixtures.
++- Nonetheless the review's underlying intent — no syntax that any reviewer or runtime
++  could misread as Python 2, package importable everywhere — is worth honoring.
++
++**Fix applied (satisfies both the review and every gate; no test/config changes):**
++- `src/debrief/adapters/ggufbench_store.py` — new module constant
++  `_MISSING_PATH_ERRORS = (FileNotFoundError, NotADirectoryError)` (one why-comment);
++  `_is_regular_file` now catches `except _MISSING_PATH_ERRORS:`.
++- `src/debrief/adapters/buildwright_log.py` — same constant + same catch at the `stat()`
++  probe (the second file `ruff format --check` flagged; leaving it meant the gate stayed
++  red). Same-package, same 2-line pattern.
++- Net effect: no bare-comma except syntax anywhere under `src/` (grep-verified), no
++  inline except tuple for the py314 formatter to unwrap, identical semantics on every
++  Python 3.x including <3.14 — strictly stronger than the requested parens.
++
++**Files touched by this dispatch:** the two adapters above;
++`harness/specs/debrief_bench_query/traceability.txt` (refreshed, PASS 3/3);
++`harness/logs/debrief_bench_query/batch-4.log` (gate + syntax evidence);
++`harness/progress/impl_debrief_bench_query.md` (this section). `tasks.md` unchanged —
++T4 was already `[x]`; gates re-verified green below.
++
++### Gates (all green, exit=0)
++- `uv run pytest tests` → **150 passed** in 0.48s.
++- `uv run ruff check .` → All checks passed!
++- `uv run ruff format --check .` → 63 files already formatted.
++- `uv run mypy --strict` → Success: no issues found in 14 source files.
++- `uv run python -m compileall -q src/debrief tests` → clean; package import proof OK
++  (ggufbench_store, buildwright_log, mcp_server).
++- `bash harness/init.sh` → final line `[OK]`.
++- `uv run python harness/tools/check-traceability.py --feature debrief_bench_query .` →
++  PASS, 3/3 requirements covered (saved in the feature directory).
++
++### Traceability (merged table for check-traceability.py)
++
++| Requirement | Test(s) | Implementation file(s) | Status |
++|---|---|---|---|
++| R1 | test_bench_query_tool_answers_within_the_allowed_root, test_query_bench_refuses_with_structured_error, test_bench_query_tool_refuses_paths_outside_the_root, test_bench_query_tool_refuses_a_symlink_escaping_below_the_requested_path | src/debrief/errors.py, src/debrief/use_cases.py, src/debrief/mcp_server.py | done |
++| R2 | test_no_debrief_module_contains_a_write_path, test_bench_query_leaves_the_artifact_tree_byte_identical, test_bench_query_symlink_escape_refusal_writes_nothing_either | src/debrief/mcp_server.py, src/debrief/adapters/ggufbench_store.py | done |
++| R3 | test_query_bench_answers_from_real_artifact_root, test_bench_row_carries_measure_signature_and_evidence_from_the_artifact, test_symlinked_results_file_outside_the_root_refuses_the_scan, test_symlinked_results_file_inside_the_root_is_still_read | src/debrief/ports.py, src/debrief/adapters/ggufbench_store.py, src/debrief/domain.py | done |
+diff --git a/harness/progress/review_debrief_bench_query.md b/harness/progress/review_debrief_bench_query.md
+index 95c8fd3..f3a3a6d 100644
+--- a/harness/progress/review_debrief_bench_query.md
++++ b/harness/progress/review_debrief_bench_query.md
+@@ -2,29 +2,13 @@
+ 
+ **Verdict:** CHANGES_REQUESTED
+ 
+-One-pass review of the whole debrief_bench_query feature (S1 bench.query). I read architecture.md, conventions.md, CHECKPOINTS.md, the three spec files, impl/progress notes, and every source/test file. Gates I ran myself: `uv run pytest tests` → 110 passed; `uv run ruff check .` clean; `uv run ruff format --check .` 51 files formatted; `uv run mypy --strict` clean (14 source files); `bash harness/init.sh` → final line [OK]; `bash harness/tools/audit-security.sh` → exit 0, no HIGH findings; `bash harness/tools/gauntlet.sh --feature debrief_bench_query` → exit 0 (tasks:ok, traceability:ok); `harness/tools/check-traceability.py --feature debrief_bench_query` → PASS 3/3. All four tasks are [x] in tasks.md. Architecture/conventions hold: domain.py imports nothing outward (only debrief.errors), ports are domain-language protocols, format knowledge stays in adapters/ggufbench_store.py, DebriefErrors are returned (never raised) and mapped to typed responses in mcp_server.py, no write path exists under src/debrief (23-marker static scan + runtime byte-identical-tree proof over 5 response classes + symlink-escape case).
+-
+-## Security Audit (audit_level: standard)
+-- Method: `bash harness/tools/audit-security.sh` (ran myself, exit 0) + manual checklist of docs/verification.md.
+-- Findings: [LOW] B101 assert_used ×171, all under tests/ — waived (pytest assertions; zero under src/). [LOW] B105 at src/debrief/domain.py:13 — waived, false positive: the flagged literal is `PASS = "pass"`, the ggufbench outcome enum, not a credential. [INFO] pip-audit SKIPPED (tool not installed) — non-blocking per the checklist's own text; deps ship via committed uv.lock from official registries.
+-- Manual checklist confirmed on disk: no secrets/tokens (grep clean), no auth/session code, no SQL anywhere, no eval/exec/pickle/subprocess/os.system/popen or print() under src/debrief (grep verified), no f-string log calls (parameterized %s/%d only), paths validated at the adapter boundary (`_resolve_within` + per-candidate `_contained_results` containment, security-audit A03), stdio transport only (no network binding).
+-- Result: PASS — no HIGH findings; LOW findings waived above.
+-
+-## Traceability (verified test-by-test against tests/test_bench.py, all passing)
+-- R1 (findings or structured error, stable code): test_bench_query_tool_answers_within_the_allowed_root, test_query_bench_refuses_with_structured_error (missing/unparseable/outcome-enum refusals assert code+message+detail), test_bench_query_tool_refuses_paths_outside_the_root (traversal + 3 NUL variants → path_outside_root), test_bench_query_tool_refuses_a_symlink_escaping_below_the_requested_path. Codes PATH_OUTSIDE_ROOT/BENCH_SOURCE_MISSING/SOURCE_UNPARSEABLE exist in errors.py and are wired in mcp_server.py `_resolve_within` + ggufbench_store `findings()`.
+-- R2 (no writes while serving): test_no_debrief_module_contains_a_write_path (23 paren-qualified markers incl. tempfile/shutil/os.symlink/subprocess), test_bench_query_leaves_the_artifact_tree_byte_identical (5 params, snapshots tmp sandbox AND tests/fixtures before/after), test_bench_query_symlink_escape_refusal_writes_nothing_either. Adapter reads via read_text only; no open-for-write anywhere in src/debrief.
+-- R3 (findings solely from ggufbench artifacts via BenchStore port): test_query_bench_answers_from_real_artifact_root and test_bench_row_carries_measure_signature_and_evidence_from_the_artifact against real fixtures tests/fixtures/ggufbench/run-2026-11-01|02 (document matches design schema: engine_build/baseline/rows with model, task, outcome, score, reason, artifact, graded); test_symlinked_results_file_outside_the_root_refuses_the_scan (LEAKED-model never surfaces) and test_symlinked_results_file_inside_the_root_is_still_read (containment rejects escapes, not symlinks). QueryBench delegates to the BenchStore port only.
+-
+-## Required change (blocking, single item)
+-src/debrief/adapters/ggufbench_store.py:126 — `except FileNotFoundError, NotADirectoryError:` is not valid Python 3 syntax on stock CPython (`SyntaxError: multiple exception types must be parenthesized`; the Python-2 form was removed in 3.0 per PEP 3110 and stock interpreters — including CPython 3.14, which this project pins via `.python-version` and `requires-python = ">=3.14"` — reject it). I confirmed the line verbatim on disk (grep + Python repr of line 126). Notably, this sandbox's interpreter, ruff and mypy all accept it, so every gate here is green — but the artifact built from this tree is unimportable on stock interpreters, which kills the `debrief` console script entirely: no bench.query responses of any kind, i.e. R1 and R3 fail in deployment even though they pass in this sandbox. It also silently changes meaning in the dialect where it parses. The parenthesized form `except (FileNotFoundError, NotADirectoryError):` is the documented intent. The line is inherited from parent commit 922409d (git status shows the adapter unmodified in this feature), so a one-line `fix(debrief): parenthesize multi-exception except in ggufbench adapter` commit resolves it; no test changes needed.
+-
+-Everything else is approve-quality; re-run the gate battery after the fix and this slice is done.
++One-pass review of debrief_bench_query (S1 bench.query). Round-2's required change (except syntax at ggufbench_store.py:126) is addressed and superseded on disk: both adapters now catch via a named `_MISSING_PATH_ERRORS = (FileNotFoundError, NotADirectoryError)` constant — I grep-verified no bare-comma or inline-tuple except remains under src/, and reproduced via a temp-file experiment that `ruff format --target-version py314` rewrites the committed parenthesized spelling to PEP 758 bare-comma, so the named constant is the only spelling that is both review-compliant and gate-stable on every Python 3.x. Gates I ran myself, all green: harness/init.sh exit 0 final line [OK] (150 passed); uv run pytest tests → 150 passed; ruff check clean; ruff format --check → 63 files formatted; mypy --strict → Success (14 files); audit-security.sh exit 0 with no HIGH/MEDIUM findings; gauntlet.sh --feature debrief_bench_query exit 0 PASS; check-traceability.py → PASS 3/3. All 12 tests named in the requirements.md traceability table exist in tests/test_bench.py and pass; T1–T4 all [x]. R1: bench_query returns findings or a typed DebriefError on every path (PATH_OUTSIDE_ROOT/BENCH_SOURCE_MISSING/SOURCE_UNPARSEABLE defined in errors.py; traversal + NUL variants, missing/unparseable fixtures, unreadable root/run-dir, huge-int score all mapped, never raised). R2: 23-marker static write scan plus a runtime byte-identical-tree proof over 5 response classes (sandbox AND fixtures snapshotted) and a symlink-escape no-write test; my independent grep found no eval/exec/pickle/subprocess/print/shell under src/debrief. R3: findings derive solely from results.json artifacts through the BenchStore port; fixtures match the design schema field-for-field; per-candidate symlink containment (escape refuses with no LEAKED-model leakage, contained link still read). Architecture/conventions hold: domain imports nothing outward, format knowledge only in adapters, DebriefError returned never raised, parameterized logging, paths validated at the boundary (A03). SECURITY AUDIT (audit_level standard, run myself): audit-security.sh exit 0, verdict "no HIGH severity findings" (saved log grep: 0 HIGH/MEDIUM). Waived LOWs verified on disk: B101 assert_used ×171 all under tests/; B105 at src/debrief/domain.py flags `PASS = "pass"` — the ggufbench outcome enum, not a credential. [INFO] pip-audit SKIPPED (not installed), non-blocking per docs/verification.md; deps ship via committed uv.lock. Manual checklist confirmed: no secrets patterns, no auth/session code, stdio localhost only, no SQL, boundary input validation, no eval/exec/pickle. Result: PASS. VERDICT: CHANGES_REQUESTED for exactly one non-code item — the final fix exists only as uncommitted working-tree state (2 adapters + progress/traceability edits + untracked batch-4.log), while the branch tip (ab43153) demonstrably fails the documented ruff format gate; committing the current tree is required so the approved, gate-green state is durable (this harness has already lost uncommitted state once per history.md, and round-2's fix was itself committed before re-review).
+ 
+ ## Requirement traceability ↔ tests
+-- R1 → tests/test_bench.py::test_bench_query_tool_answers_within_the_allowed_root, ::test_query_bench_refuses_with_structured_error, ::test_bench_query_tool_refuses_paths_outside_the_root, ::test_bench_query_tool_refuses_a_symlink_escaping_below_the_requested_path — all present and passing
+-- R2 → tests/test_bench.py::test_no_debrief_module_contains_a_write_path, ::test_bench_query_leaves_the_artifact_tree_byte_identical (5 params), ::test_bench_query_symlink_escape_refusal_writes_nothing_either — all present and passing
+-- R3 → tests/test_bench.py::test_query_bench_answers_from_real_artifact_root, ::test_bench_row_carries_measure_signature_and_evidence_from_the_artifact, ::test_symlinked_results_file_outside_the_root_refuses_the_scan, ::test_symlinked_results_file_inside_the_root_is_still_read — all present and passing against real fixtures tests/fixtures/ggufbench/*
++- R1 (findings or structured error with stable code) → tests/test_bench.py::test_bench_query_tool_answers_within_the_allowed_root, ::test_query_bench_refuses_with_structured_error, ::test_bench_query_tool_refuses_paths_outside_the_root (traversal + 3 NUL variants → path_outside_root), ::test_bench_query_tool_refuses_a_symlink_escaping_below_the_requested_path — codes defined in src/debrief/errors.py, wired via _resolve_within in src/debrief/mcp_server.py and src/debrief/adapters/ggufbench_store.py; all present and passing
++- R2 (no file writes while serving) → tests/test_bench.py::test_no_debrief_module_contains_a_write_path (23-marker scan over src/debrief), ::test_bench_query_leaves_the_artifact_tree_byte_identical (5 params: findings×2 + 3 refusal classes, snapshots tmp sandbox AND tests/fixtures), ::test_bench_query_symlink_escape_refusal_writes_nothing_either — adapters read via read_text only; all present and passing
++- R3 (findings solely from ggufbench artifacts via the BenchStore port) → tests/test_bench.py::test_query_bench_answers_from_real_artifact_root, ::test_bench_row_carries_measure_signature_and_evidence_from_the_artifact (real fixtures tests/fixtures/ggufbench/run-2026-11-01|02 matching the design schema), ::test_symlinked_results_file_outside_the_root_refuses_the_scan, ::test_symlinked_results_file_inside_the_root_is_still_read — QueryBench delegates to the BenchStore protocol in src/debrief/ports.py only; containment re-checked per candidate in src/debrief/adapters/ggufbench_store.py; all present and passing
+ 
+ ## Required changes
+-1. src/debrief/adapters/ggufbench_store.py:126 — replace `except FileNotFoundError, NotADirectoryError:` with `except (FileNotFoundError, NotADirectoryError):`. The bare multi-name form is invalid Python 3 syntax on stock CPython (including the pinned 3.14; invalid since 3.0, PEP 3110) and would make the debrief package unimportable in deployment, breaking R1/R3 at the transport level even though this sandbox's interpreter/ruff/mypy happen to accept it. One-line fix, no test changes needed; then re-run uv run pytest tests, ruff, mypy --strict and bash harness/init.sh.
++1. Commit the current dispatch-4 working-tree state so the branch tip carries the gate-green, round-2-compliant code: `src/debrief/adapters/ggufbench_store.py` and `src/debrief/adapters/buildwright_log.py` (the `_MISSING_PATH_ERRORS` named-tuple except fix), plus `harness/progress/impl_debrief_bench_query.md`, `harness/specs/debrief_bench_query/traceability.txt`, and the untracked `harness/logs/debrief_bench_query/batch-4.log`, as one conventional commit (e.g. `fix(debrief_bench_query): replace inline except tuples with named _MISSING_PATH_ERRORS constants`). Rationale: HEAD (ab43153) still holds `except (FileNotFoundError, NotADirectoryError):` at ggufbench_store.py:126 and buildwright_log.py:65, which I empirically proved ruff format (target py314) rewrites to the PEP 758 bare-comma spelling — so the committed tip alone fails the documented `uv run ruff format --check .` gate; only the uncommitted tree is green, and this harness has already lost uncommitted session state once (feature_list.json restore, harness/progress/history.md). No source edits needed; after committing, re-run `uv run pytest tests`, `ruff check`, `ruff format --check`, `mypy --strict` and `bash harness/init.sh` (all green on the identical tree today) and confirm `git status` is clean for src/ and tests/.
