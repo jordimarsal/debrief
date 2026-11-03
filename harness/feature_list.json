@@ -40,7 +40,7 @@
         "No file writes while serving (R2)."
       ],
       "part_of": "debrief",
-      "status": "pending"
+      "status": "spec_ready"
     },
     {
       "id": 3,
