@@ -1,0 +1,109 @@
+# debrief_role_propose demo transcript — routing.propose over MCP stdio
+# server: uv run debrief (MCP stdio)
+# session 1: DEBRIEF_BENCH_ROOT=tests/fixtures/ggufbench DEBRIEF_RUN_ROOT=tests/fixtures/buildwright
+# R2 proof: fixture fingerprint (size, mtime_ns, sha256) re-checked after serving
+# fixtures fingerprinted before serving: 26 files
+
+>>> tools/list
+["bench.query", "run.inspect", "routing.propose"]
+
+>>> routing.propose {"bench_path": "run-2026-11-01", "run_path": "run-2026-11-02T09-14Z.log"}
+{
+  "proposal": "proposal: BW_ROLE_WORKER holds qwen2.5-7b-instruct-q4_k_m, which failed task sql-join\n- BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m\n+ BW_ROLE_WORKER=llama-3.1-8b-instruct-q4_k_m\nwhy run: qwen2.5-7b-instruct-q4_k_m failed sql-join (patch pushes the join to 41 rows against a graded limit of 40) \u2014 r-2026-11-02T09-14Z/worker.patch\nwhy bench: llama-3.1-8b-instruct-q4_k_m passed sql-join at score 0.86 (all three dimensions above the pass mark) \u2014 run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript\nsignature: joins:40,limits:10,syntax:20@b4937-graded-baseline@llama.cpp-b4937\nnot applied: debrief never writes; paste the + line into the buildwright role env (ADR-0001). Proposals target roles, never models.yaml (ADR-0003).",
+  "error": null
+}
+```
+proposal: BW_ROLE_WORKER holds qwen2.5-7b-instruct-q4_k_m, which failed task sql-join
+- BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m
++ BW_ROLE_WORKER=llama-3.1-8b-instruct-q4_k_m
+why run: qwen2.5-7b-instruct-q4_k_m failed sql-join (patch pushes the join to 41 rows against a graded limit of 40) — r-2026-11-02T09-14Z/worker.patch
+why bench: llama-3.1-8b-instruct-q4_k_m passed sql-join at score 0.86 (all three dimensions above the pass mark) — run-2026-11-01/sql-join/llama-3.1-8b-instruct.transcript
+signature: joins:40,limits:10,syntax:20@b4937-graded-baseline@llama.cpp-b4937
+not applied: debrief never writes; paste the + line into the buildwright role env (ADR-0001). Proposals target roles, never models.yaml (ADR-0003).
+```
+
+>>> routing.propose {"bench_path": ".", "run_path": "run-2026-11-02T09-14Z.log"}
+{
+  "proposal": "",
+  "error": {
+    "code": "incomparable_rows",
+    "message": "rows span more than one task signature; refusing to rank or average",
+    "detail": "2 signatures: joins:40,limits:10,syntax:20@b4937-graded-baseline@llama.cpp-b4937, joins:40,limits:10,syntax:20@b4945-graded-baseline@llama.cpp-b4937"
+  }
+}
+
+>>> routing.propose {"bench_path": "../pyproject.toml", ...}
+{
+  "proposal": "",
+...
+
+{
+  "proposal": "",
+  "error": {
+    "code": "path_outside_root",
+    "message": "requested path could not be resolved within the allowed evidence root",
+    "detail": "'run-2026-11-02T09-14Z.log\\x00': lstat: embedded null character in path"
+  }
+}
+
+>>> routing.propose {"bench_path": "does-not-exist", ...}
+{
+  "proposal": "",
+  "error": {
+    "code": "bench_source_missing",
+    "message": "no ggufbench artifacts at the requested path",
+    "detail": "/home/jordi/works/debrief/.buildwright/worktrees/debrief_role_propose/tests/fixtures/ggufbench/does-not-exist"
+  }
+}
+
+>>> routing.propose {"run_path": "does-not-exist.log", ...}
+{
+  "proposal": "",
+  "error": {
+    "code": "run_source_missing",
+    "message": "no buildwright run log at the requested path",
+    "detail": "/home/jordi/works/debrief/.buildwright/worktrees/debrief_role_propose/tests/fixtures/buildwright/does-not-exist.log"
+  }
+}
+
+>>> routing.propose {"run_path": "run-2026-11-03T10-00Z.log"} (every step passed)
+{
+  "proposal": "no proposal: every logged step passed",
+  "error": null
+}
+
+# session 2: DEBRIEF_BENCH_ROOT=tests/fixtures/ggufbench_broken (poisoned cohort)
+>>> routing.propose {"bench_path": "nonfinite-score-nan", ...}
+{
+  "proposal": "",
+  "error": {
+    "code": "source_unparseable",
+    "message": "/home/jordi/works/debrief/.buildwright/worktrees/debrief_role_propose/tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json is not a ggufbench results document",
+    "detail": "score is not a finite number: nan"
+  }
+}
+
+# fixtures fingerprinted after serving: 26 files
+# byte-identical (size+mtime_ns+sha256): True
+PASS tools/list names routing.propose
+PASS happy path answers a proposal with no error
+PASS proposal diffs the failed role away
+PASS proposal diffs the bench winner in
+PASS proposal cites the shared signature
+PASS proposal states it is not applied
+PASS every diff line targets BW_ROLE_*
+PASS models.yaml appears only inside the not-applied prose
+PASS root-scan cohort refuses as incomparable_rows
+PASS the refusal names both baselines
+PASS the refusal is the whole answer (no proposal text)
+PASS bench traversal refuses as path_outside_root
+PASS NUL in the run path refuses as path_outside_root
+PASS missing bench answers bench_source_missing
+PASS missing run answers run_source_missing
+PASS all-passed run answers the literal success text
+PASS non-finite bench score refuses as source_unparseable
+PASS the poisoned row's model never reaches the answer
+PASS R2: every fixture byte-identical (contents + mtime) after serving
+PASS R2: the fingerprint is not vacuous
+
+demo assertions PASS

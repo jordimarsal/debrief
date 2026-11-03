@@ -1,0 +1,224 @@
+LEN 34047
+ for sql-join in the bench cohort, keeping"
+            f" BW_ROLE_WORKER={QWEN}",
+            id="no_passing_candidate",
+        ),
+        pytest.param(
+            [_bench_row(LLAMA)],
+            [_run_finding(None, QWEN)],
+            "note: step on sql-join recorded no role, nothing to propose"
+            " (r-2026-11-02T09-14Z/worker.patch)",
+            id="roleless_step",
+        ),
+    ],
+)
+def test_propose_renders_a_keep_the_role_note_and_no_diff_for_every_keep_case(
+    bench_rows: list[Finding], run_rows: list[Finding], note: str
+) -> None:
+    answer = propose_prebuilt(bench_rows, run_rows)
+
+    assert isinstance(answer, str)
+    assert note in answer
+    assert not any(line[:2] in {"- ", "+ "} for line in answer.splitlines())
+    assert "models.yaml" not in answer
+
+
+@pytest.mark.parametrize(
+    "role_token",
+    [
+        pytest.param("worker", id="bare_lowercase"),
+        pytest.param("WORKER", id="bare_uppercase"),
+        pytest.param("BW_ROLE_WORKER", id="prefixed_as_written_in_the_roles_header"),
+        pytest.param("bw_role_worker", id="prefixed_lowercase"),
+    ],
+)
+def test_role_tokens_carrying_the_env_prefix_still_render_a_pasteable_diff(
+    tmp_path: Path, role_token: str
+) -> None:
+    run_log = tmp_path / "prefixed-role.log"
+    run_log.write_text(
+        "\n".join(
+            [
+                "run: r-synthetic-prefixed-role",
+                "engine_build: llama.cpp-b4937",
+                "task: sql-join",
+                "roles: BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m",
+                f"step: 01 role={role_token} model={QWEN} outcome=fail "
+                'reason="join limit exceeded" evidence=r-prefixed/worker.patch',
+                "result: fail failed_steps=01",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    answer = propose(BENCH_ROOT / "run-2026-11-01", run_log)
+
+    assert isinstance(answer, str)
+    assert f"proposal: BW_ROLE_WORKER holds {QWEN}, which failed task sql-join" in answer
+    assert f"+ BW_ROLE_WORKER={LLAMA}" in answer
+    assert "BW_ROLE_BW_ROLE_" not in answer
+
+
+def _escaping_bench_tree(tmp_path: Path) -> Path:
+    """A bench cohort whose only sql-join row (a winning one) lives outside the root."""
+    outside = tmp_path / "outside.json"
+    outside.write_text(
+        json.dumps(
+            {
+                "engine_build": "llama.cpp-b4937",
+                "baseline": "b4937-graded-baseline",
+                "rows": [
+                    {
+                        "model": "LEAKED-model",
+                        "task": "sql-join",
+                        "outcome": "pass",
+                        "score": 1.0,
+                        "reason": "row read outside the evidence root",
+                        "artifact": "/outside/leaked.transcript",
+                        "graded": {"joins": 40, "limits": 10, "syntax": 20},
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    root = tmp_path / "ggufbench"
+    run_dir = root / "r1"
+    run_dir.mkdir(parents=True)
+    (run_dir / RESULTS_FILE).symlink_to(outside)
+    return root
+
+
+@pytest.mark.parametrize(
+    "subpath",
+    [pytest.param("", id="artifact_root_scan"), pytest.param("r1", id="run_dir_requested")],
+)
+def test_symlink_escaping_the_bench_root_never_reaches_the_proposal(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, subpath: str
+) -> None:
+    root = _escaping_bench_tree(tmp_path)
+    monkeypatch.setenv(BENCH_ROOT_ENV, str(r
+=====CHUNK B=====
+        "\n",
+            "- BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m",
+            id="artifact_forges_removal",
+        ),
+        pytest.param(
+            "reason",
+            " ",
+            "+ BW_ROLE_WORKER=evil-model",
+            id="reason_forges_via_unicode_line_separator",
+        ),
+    ],
+)
+def test_poisoned_bench_fields_never_reach_the_proposal_output(
+    tmp_path: Path, field: str, sep: str, forged_line: str
+) -> None:
+    """End-to-end: a cohort with a poisoned string field refuses as a structured
+    error, so no forged `- `/`+ ` diff line can reach the caller's output (R6
+    holds even when the artifact itself is the attack). The last row forges
+    through a Unicode line separator (U+2029), which a pure control-character
+    check would let through because it sits above ``ord(ch) < 0x20``."""
+    row = {
+        "model": "trusted-winner",
+        "task": "sql-join",
+        "outcome": "pass",
+        "score": 0.99,
+        "reason": "clean reason",
+        "artifact": "run-2026-11-01/sql-join/winner.transcript",
+        "graded": {"joins": 40, "limits": 10, "syntax": 20},
+    }
+    row[field] = f"trusted-value{sep}{forged_line}"
+    poisoned = tmp_path / "poisoned-bench"
+    poisoned.mkdir()
+    document = {
+        "engine_build": "llama.cpp-b4937",
+        "baseline": "b4937-graded-baseline",
+        "rows": [row],
+    }
+    (poisoned / RESULTS_FILE).write_text(json.dumps(document), encoding="utf-8")
+
+    answer = propose(poisoned, SQL_JOIN_LOG)
+
+    assert isinstance(answer, DebriefError)
+    assert answer.code == SOURCE_UNPARSEABLE
+    # The refusal is the whole output: the answer is never proposal text, so
+    # the forged diff line cannot be rendered to the caller (not even as a
+    # `- `/`+ ` line of a seemingly valid diff).
+    assert not isinstance(answer, str)
+
+
+@pytest.mark.parametrize(
+    ("field", "sep", "forged_line"),
+    [
+        pytest.param(
+            "model", "\n", "+ BW_ROLE_WORKER=evil-model", id="newline_forge_through_the_tool"
+        ),
+        pytest.param(
+            "reason",
+            " ",
+            "+ models.yaml: rewrite-every-role",
+            id="unicode_separator_registry_forge_through_the_tool",
+        ),
+    ],
+)
+def test_routing_propose_answers_a_poisoned_bench_cohort_with_a_structured_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, field: str, sep: str, forged_line: str
+) -> None:
+    """End-to-end through the tool boundary: a poisoned cohort refuses as a
+    structured error and the response carries no proposal text at all, so a
+    newline- or Unicode-separator-forged `- `/`+ ` line — including a models.yaml
+    forge — cannot ride into the caller's output (R6)."""
+    row = {
+        "model": "trusted-winner",
+        "task": "sql-join",
+        "outcome": "pass",
+        "score": 0.99,
+        "reason": "clean reason",
+        "artifact": "run-2026-11-01/sql-join/winner.transcript",
+        "graded": {"joins": 40, "limits": 10, "syntax": 20},
+    }
+    row[field] = f"trusted-value{sep}{forged_line}"
+    poisoned = tmp_path / "poisoned-bench"
+    poisoned.mkdir()
+    document = {
+        "engine_build": "llama.cpp-b4937",
+        "baseline": "b4937-graded-baseline",
+        "rows": [row],
+    }
+    (poisoned / RESULTS_FILE).write_text(json.dumps(document), encoding="utf-8")
+    monkeypatch.setenv(BENCH_ROOT_ENV, str(poisoned))
+
+    response = routing_propose(".", "run-2026-11-02T09-14Z.log")
+
+    assert response.proposal == ""
+    assert response.error is not None
+    assert response.error.code == SOURCE_UNPARSEABLE
+    assert "+ BW_ROLE_WORKER=evil-model" not in response.proposal
+    assert "models.yaml" not in response.proposal
+
+
+def test_propose_does_not_claim_all_passed_for_a_step_stripped_log(tmp_path: Path) -> None:
+    bench_root = tmp_path / "bench"
+    bench_root.mkdir()
+    document = {
+        "engine_build": "llama.cpp-b4937",
+        "baseline": "b4937-graded-baseline",
+        "rows": [
+            {
+                "model": QWEN,
+                "task": "sql-join",
+                "outcome": "fail",
+                "score": 0.52,
+                "reason": "join limit exceeded",
+                "artifact": "run/sql-join/qwen.transcript",
+                "graded": {"joins": 40, "limits": 10, "syntax": 20},
+            }
+        ],
+    }
+    (bench_root / RESULTS_FILE).write_text(json.dumps(document), encoding="utf-8")
+
+    run_log = tmp_path / "run-step-stripped.log"
+    run_log.write_text(
+        "\n".join(

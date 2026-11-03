@@ -261,6 +261,25 @@ def test_unreadable_run_directory_is_reported_not_skipped(tmp_path: Path) -> Non
     assert "run-locked" in answer.detail or "Permission denied" in answer.detail
 
 
+def test_regular_file_where_a_run_dir_should_be_refuses_as_missing_not_crashing(
+    tmp_path: Path,
+) -> None:
+    """The `_is_regular_file` clause catches both `FileNotFoundError` and
+    `NotADirectoryError`: a candidate whose parent component is a regular file
+    raises the latter on stat(), and the store answers a structured refusal —
+    never the raw exception (R1)."""
+    root = tmp_path / "ggufbench"
+    root.mkdir()
+    (root / "collide").write_text("a regular file where a run directory would go", encoding="utf-8")
+
+    answer = QueryBench(GgufbenchStore(root)).run()
+
+    assert isinstance(answer, DebriefError)
+    assert answer.code == BENCH_SOURCE_MISSING
+    assert answer.message
+    assert answer.detail
+
+
 def test_shared_signature_refuses_rows_measured_against_different_baselines() -> None:
     answer = QueryBench(GgufbenchStore(BENCH_ROOT)).run()
 
@@ -359,10 +378,16 @@ def test_no_debrief_module_contains_a_write_path() -> None:
         pytest.param(
             "reason",
             "clean\u2029+ BW_ROLE_WORKER=evil-model",
-            id="reason_forges_via_unicode_line_separator",
+            id="reason_forges_via_unicode_paragraph_separator",
+        ),
+        pytest.param(
+            "reason",
+            "clean\u0085+ BW_ROLE_WORKER=evil-model",
+            id="reason_forges_via_unicode_next_line",
         ),
         pytest.param("artifact", "run/a\nrun/b", id="artifact_multiline"),
         pytest.param("artifact", "run/a\u2028run/b", id="artifact_unicode_line_separator"),
+        pytest.param("artifact", "run/a\u0085run/b", id="artifact_unicode_next_line"),
         pytest.param("engine_build", "llama.cpp-b4937\nextra", id="engine_build_multiline"),
         pytest.param("baseline", "b4937-graded-baseline\nextra", id="baseline_multiline"),
         pytest.param("model", "trusted\x00winner", id="model_control_char_is_not_a_token"),

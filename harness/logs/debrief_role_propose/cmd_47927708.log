@@ -1,0 +1,194 @@
+oot))
+
+    response = routing_propose(subpath, "run-2026-11-02T09-14Z.log")
+
+    assert response.proposal == ""
+    assert response.error is not None
+    assert response.error.code == SOURCE_UNPARSEABLE
+    assert "outside the artifact root" in response.error.detail
+    assert "LEAKED-model" not in response.error.detail
+
+
+@pytest.mark.parametrize("outcome_token", ["FAIL", "Pass", "timeout"])
+def test_unknown_outcome_step_never_yields_the_all_passed_claim(
+    tmp_path: Path, outcome_token: str
+) -> None:
+    run_log = tmp_path / "hostile-outcome.log"
+    run_log.write_text(
+        "\n".join(
+            [
+                "run: r-synthetic-hostile-outcome",
+                "engine_build: llama.cpp-b4937",
+                "task: sql-join",
+                "roles: BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m",
+                f"step: 01 role=worker model={QWEN} outcome={outcome_token} "
+                'reason="join limit exceeded" evidence=r-hostile/worker.patch',
+                "result: fail failed_steps=01",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    answer = propose(BENCH_ROOT / "run-2026-11-01", run_log)
+
+    assert isinstance(answer, DebriefError)
+    assert answer.code == SOURCE_UNPARSEABLE
+    assert outcome_token in answer.detail
+
+
+@pytest.mark.parametrize(
+    "artifact_dir",
+    [
+        "nonfinite-score-nan",
+        "nonfinite-score-infinity",
+        "nonfinite-score-neg-infinity",
+        "huge-int-score",
+    ],
+)
+def test_poisoned_bench_scores_never_reach_the_proposal_ranking(artifact_dir: str) -> None:
+    answer = propose(BROKEN_ROOT / artifact_dir, SQL_JOIN_LOG)
+
+    assert isinstance(answer, DebriefError)
+    assert answer.code == SOURCE_UNPARSEABLE
+    assert "evil-model" not in answer.detail
+
+
+def test_propose_role_keeps_the_role_when_bench_never_measured_the_task(tmp_path: Path) -> None:
+    run_log = tmp_path / "unmeasured.log"
+    run_log.write_text(
+        "\n".join(
+            [
+                "run: r-synthetic-unmeasured",
+                "engine_build: llama.cpp-b4937",
+                "task: regex-extract",
+                "roles: BW_ROLE_WORKER=qwen2.5-7b-instruct-q4_k_m",
+                f"step: 01 role=worker model={QWEN} outcome=fail "
+                'reason="anchors missed" evidence=r-synthetic/worker.patch',
+                "result: fail failed_steps=01",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    answer = propose(BENCH_ROOT / "run-2026-11-02", run_log)
+
+    assert isinstance(answer, str)
+    assert "note: ggufbench never measured regex-extract" in answer
+    assert f"keeping BW_ROLE_WORKER={QWEN}" in answer
+
+
+def test_propose_role_keeps_the_role_when_no_other_model_passed(tmp_path: Path) -> None:
+    run_log = tmp_path / "solo.log"
+    run_log.write_text(
+        "\n".join(
+            [
+                "run: r-synthetic-solo",
+                "engine_build: llama.cpp-b4937",
+                "task: sql-join",
+                "roles: BW_ROLE_WORKER=gemma-2-9b-it-q4_k_m",
+                "step: 01 role=worker model=gemma-2-9b-it-q4_k_m outcome=fail "
+                'reason="join limit exceeded" evidence=r-synthetic-solo/worker.patch',
+                "result: fail failed_steps=01",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    answer = propose(BENCH_ROOT / "run-2026-11-02", run_log)
+
+    assert isinstance(answer, str)
+    assert "note: no passing model for sql-join in the bench cohort" in answer
+    assert "keeping BW_ROLE_WORKER=gemma-2-9b-it-q4_k_m" in answer
+
+
+@pytest.mark.parametrize(
+    ("bench_root", "run_log", "code"),
+    [
+        pytest.param(
+            BENCH_ROOT / "does-not-exist", SQL_JOIN_LOG, BENCH_SOURCE_MISSING, id="bench_missing"
+        ),
+        pytest.param(
+            BENCH_ROOT / "run-2026-11-01",
+            RUN_LOGS / "does-not-exist.log",
+            RUN_SOURCE_MISSING,
+            id="run_missing",
+        ),
+        pytest.param(
+            BROKEN_ROOT / "nonfinite-score-nan",
+            SQL_JOIN_LOG,
+            SOURCE_UNPARSEABLE,
+            id="bench_refuses_a_nonfinite_score",
+        ),
+        pytest.param(
+            BENCH_ROOT / "run-2026-11-01",
+            RUN_LOGS / "run-truncated.log",
+            SOURCE_UNPARSEABLE,
+            id="run_refuses_a_truncated_step",
+        ),
+    ],
+)
+def test_propose_role_propagates_structured_errors_from_both_ports(
+    bench_root: Path, run_log: Path, code: str
+) -> None:
+    answer = propose(bench_root, run_log)
+
+    assert isinstance(answer, DebriefError)
+    assert answer.code == code
+    # Either port's structured error is the whole answer — never proposal text
+    # with an error buried in it (R1).
+    assert not isinstance(answer, str)
+    assert answer.message
+    assert answer.detail
+
+
+def test_routing_propose_tool_renders_the_recorded_demo_diff(proposal_env: None) -> None:
+    response = routing_propose("run-2026-11-01", "run-2026-11-02T09-14Z.log")
+
+    assert response.error is None
+    assert f"+ BW_ROLE_WORKER={LLAMA}" in response.proposal
+    assert "never writes" in response.proposal
+
+
+def test_routing_propose_tool_refuses_incomparable_rows(proposal_env: None) -> None:
+    response = routing_propose(".", "run-2026-11-02T09-14Z.log")
+
+    assert response.proposal == ""
+    assert response.error is not None
+    assert response.error.code == INCOMPARABLE_ROWS
+
+
+@pytest.mark.parametrize(
+    ("bench_path", "run_path"),
+    [
+        pytest.param("run-2026-11-01\x00", "run-2026-11-02T09-14Z.log", id="nul_in_bench_path"),
+        pytest.param("run-2026-11-01", "run-2026-11-02T09-14Z.log\x00", id="nul_in_run_path"),
+    ],
+)
+def test_routing_propose_tool_refuses_nul_bytes_in_path_arguments(
+    proposal_env: None, bench_path: str, run_path: str
+) -> None:
+    response = routing_propose(bench_path, run_path)
+
+    assert response.proposal == ""
+    assert response.error is not None
+    assert response.error.code == PATH_OUTSIDE_ROOT
+
+
+@pytest.mark.parametrize(
+    ("field", "sep", "forged_line"),
+    [
+        pytest.param(
+            "model", "\n", "+ BW_ROLE_WORKER=evil-model", id="model_forges_a_role_change_line"
+        ),
+        pytest.param(
+            "model",
+            "\n",
+            "+ models.yaml: rewrite-every-role",
+            id="model_forges_a_registry_line",
+        ),
+        pytest.param("reason", "\n", "+ BW_ROLE_WORKER=evil-model", id="reason_forges_a_role_line"),
+        pytest.param(
+            "artifact",
