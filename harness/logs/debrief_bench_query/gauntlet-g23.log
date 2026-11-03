@@ -1,0 +1,81 @@
+# Gauntlet G2+G3 — feature debrief_bench_query (hybrid workflow, pass 2 of 2)
+
+Fresh-eyes re-read of every file this slice owns, top to bottom, against the G2
+adversarial table and the G3 conventions list (docs/gauntlet-protocol.md,
+docs/conventions.md). Date: round-2 dispatch (C7/C8 fixes). No trust carried over
+from batch memory; each file was re-read from disk in this pass:
+
+- src/debrief/errors.py
+- src/debrief/domain.py
+- src/debrief/ports.py
+- src/debrief/use_cases.py
+- src/debrief/mcp_server.py
+- src/debrief/adapters/ggufbench_store.py
+- tests/test_bench.py (the whole file, including the T4 additions)
+
+Scope note: `src/debrief/adapters/buildwright_log.py`, `tests/test_run.py` and
+`tests/test_propose.py` are S2/S3-owned; they were read only where a cross-slice
+idiom needed a decision (see F-1), and were not modified — batch discipline.
+
+## G2 — adversarial checklist
+
+| Check | Evidence | Result |
+|---|---|---|
+| Malicious input (poisoned artifacts) | tests/test_bench.py: nesting bombs (`[`/`{` ×100k), undecodable bytes, huge-int and NaN/±Inf scores, newline/U+2028/U+2029/control-char/NUL-poisoned string fields, multiline graded dimension — all refuse with `source_unparseable` (parametrized tables) | ok |
+| Path attacks | `../pyproject.toml`, `run-1\0`, `a/b\0c`, `"\0"` → `path_outside_root`; symlink escaping below the requested path → `source_unparseable`, `LEAKED-model` never enters the answer | ok |
+| Null/empty/negative | empty `path` → root scan (id `artifact_root_scan`); missing root / run dir without results → `bench_source_missing`; non-finite and overflowing scores refused rather than ranked | ok |
+| 10k concurrent | stdio MCP server, one request at a time; no module-level mutable state (`server` is the only global; store/use-case instances are per-call, frozen dataclasses elsewhere) | ok (n/a scale) |
+| Races | no shared mutable state, no locks needed; artifacts are opened read-only per call | ok |
+| Brittle tests | byte-identical test snapshots whole `tmp_path` sandbox AND `tests/fixtures` (copy → serve → compare), so it cannot false-pass; static scan reads real files; euid-0 skipifs guard only the two chmod tests | ok |
+
+G2 observation, defended (no change): a *contained but dangling* `results.json`
+symlink is skipped (`_contained_results` → `_is_regular_file` False → run not
+listed) exactly like a run dir without results — the same silent-skip rule the
+approved parent design applies to any unreadable run artifact. It cannot fabricate
+data (under-reports at worst), and total absence still answers the structured
+`bench_source_missing` error (tested: `missing_root`, `no_results_under_root`,
+`missing_source_refusal`). Refusing the whole scan for one dangling link would
+make one broken artifact take down every healthy run in the root — a worse
+trade for an evidence tool. Consistent with the parent-approved behavior; no fix.
+
+## G3 — maintainability checklist
+
+| Check | Evidence | Result |
+|---|---|---|
+| Hexagonal layering | domain imports nothing outward; ports are role-named protocols; adapter owns the ggufbench format; use case drives the port only; `bench_query` maps errors at the boundary | ok |
+| No blanket except | every catch is a narrow tuple or specific type; no `except Exception: pass` anywhere in src/debrief | ok |
+| I/O at edges | filesystem reads only in adapters; mcp_server resolves env+paths; domain/use-case pure | ok |
+| Conventions | frozen dataclasses, no mutable defaults, snake/Upper/UPPER naming, behavior-named tests, logging parameterized (no f-strings in log calls), `print` only in `main()`-adjacent CLI contract | ok |
+| `uv run pytest tests`, `ruff check`, `ruff format --check`, `mypy --strict` | green in this pass (see gauntlet-g1.log refresh + batch-3.log) | ok |
+
+## Findings
+
+1. [G3] `except FileNotFoundError, NotADirectoryError:` (paren-less, PEP 758) in
+   `src/debrief/adapters/ggufbench_store.py:126` — flagged on first read as a
+   Python 2 leftover / syntax error. Verified NOT a bug: `.python-version` is
+   3.14, `pyproject.toml` declares `requires-python = ">=3.14"`, `ast.parse`
+   accepts it on 3.14 (paren-less multi-except without `as` is valid PEP 758 and
+   catches both types), and the two refusal tests exercise the path.
+   DEFENDED, not fixed: the identical idiom is used in
+   `src/debrief/adapters/buildwright_log.py:65` (S2-owned file — batch discipline
+   forbids touching it in this feature's batch), so parenthesizing only
+   ggufbench_store would *create* cross-adapter inconsistency; and the
+   paren-less form is the grammar's natural shape given the package rule
+   "parenthesized tuple only when binding `as`" (`except (OSError, ValueError,
+   RecursionError) as err:` at line 133). Trade-off named: a reader whose grammar
+   reflexes predate 3.14 pays one double-take; against that, zero behavior
+   change, a homogeneous idiom across both adapters, and no edits to another
+   feature's owned file. Revisit only if the project floor ever drops below 3.14.
+
+2. [G2] Contained dangling-symlink skip — defended above (design-consistent
+   under-report, structured error when nothing is servable; no fix).
+
+No other findings. Both findings are explicitly defended with rationale per the
+protocol ("A defended finding still counts as a pass, but the rationale must name
+the trade-off"). No source changes in this pass — matches the reviewer's round-1
+note that no source changes were needed.
+
+## Verdict
+
+- G2 adversarial: PASS (2 findings, both defended with named trade-offs)
+- G3 maintainability: PASS (init.sh green — see G4; conventions checked, 0 fixes)

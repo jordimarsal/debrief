@@ -1,0 +1,52 @@
+# debrief_bench_query — round-2 (reviewer C7+C8) gate evidence
+
+All commands run from the worktree root via `uv`; every exit code 0. No source
+changes were made in this round (the two gauntlet findings are defended, see
+gauntlet-g23.log), so these numbers also re-prove the batch-2 state.
+
+```
+== bash harness/tools/audit-security.sh ==
+exit=0
+# Security Audit Report (stack: python)
+## SAST: bandit
+   ... 171 × [B101 assert_used] Severity: Low (all under tests/)
+   ... 1  × [B105 hardcoded_password_string] Severity: Low
+           (src/debrief/domain.py:13 — `PASS = "pass"`, ggufbench outcome enum
+            literal mistaken for a credential; waived, see progress file)
+## Dependency scan: pip-audit — SKIPPED (not installed)
+VERDICT: no HIGH severity findings reported by automated tools.
+(full report: harness/logs/debrief_bench_query/audit-security.log)
+
+== bash harness/tools/gauntlet.sh --feature debrief_bench_query ==
+exit=0
+# Gauntlet G1 — feature debrief_bench_query: PASS
+- spec-requirements:ok
+- spec-design:ok
+- spec-tasks:ok
+- tasks:ok
+- traceability:ok
+Traceability detail: ok
+(full output: harness/logs/debrief_bench_query/gauntlet-g1.log)
+
+== uv run pytest tests ==
+110 passed in 0.56s
+
+== uv run ruff check . ==
+All checks passed!
+
+== uv run ruff format --check . ==
+50 files already formatted
+
+== uv run mypy --strict ==
+Success: no issues found in 14 source files
+
+== bash harness/init.sh (final lines) ==
+[OK]    All tests pass
+── 4. Summary ────────────────────────────────────────
+[OK]    Environment ready. You can start working.
+
+== G2/G3 fresh-eyes pass ==
+walk log: harness/logs/debrief_bench_query/gauntlet-g23.log
+2 findings, both defended (paren-less PEP 758 except; contained dangling-symlink
+skip) — no source changes.
+```

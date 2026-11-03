@@ -123,7 +123,7 @@ def _contained_results(root: Path, candidate: Path) -> Path | None:
 def _is_regular_file(path: Path) -> bool:
     try:
         return stat.S_ISREG(path.stat().st_mode)
-    except FileNotFoundError, NotADirectoryError:
+    except (FileNotFoundError, NotADirectoryError):
         return False
 
 

@@ -1,0 +1,19 @@
+# check-traceability.py output — debrief_bench_query (T4, batch-2)
+
+Command: uv run python harness/tools/check-traceability.py --feature debrief_bench_query .
+Exit code: 0
+
+```
+## debrief_bench_query: 3/3 requirements covered
+VERDICT: PASS
+```
+
+JSON form (`--json`) for the record:
+
+```json
+{"tool": "check-traceability", "protocol": 1, "verdict": "PASS", "features": [{"name": "debrief_bench_query", "requirements": 3, "covered": 3, "gaps": [], "unresolved": []}]}
+```
+
+Source of the merged table: `harness/progress/impl_debrief_bench_query.md`
+(Dispatch 2 section, `feature: debrief_bench_query`); the same mapping is filled into
+`harness/specs/debrief_bench_query/requirements.md`.

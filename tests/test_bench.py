@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -316,13 +317,27 @@ def test_bench_query_tool_refuses_paths_outside_the_root(bench_env: None, reques
 WRITE_MARKERS = (
     "write_text",
     "write_bytes",
+    ".write",
     "open(",
+    "dump(",
     "unlink(",
     "mkdir(",
+    "makedirs",
     "rename(",
+    "os.replace",
     "rmtree(",
     "shutil",
+    "tempfile",
     "os.remove",
+    "touch(",
+    "chmod(",
+    "truncate(",
+    "fsync",
+    "symlink_to(",
+    "os.symlink",
+    "subprocess",
+    "os.system",
+    "popen(",
 )
 
 
@@ -339,6 +354,67 @@ def test_no_debrief_module_contains_a_write_path() -> None:
     ]
 
     assert offenders == []
+
+
+def _tree_state(tree: Path) -> dict[str, bytes | None]:
+    """Every path under `tree`: file bytes, or None for a directory (R2 snapshot)."""
+    return {
+        str(path.relative_to(tree)): path.read_bytes() if path.is_file() else None
+        for path in sorted(tree.rglob("*"))
+    }
+
+
+@pytest.mark.parametrize(
+    ("artifact_root", "requested", "expected_code"),
+    [
+        pytest.param(BENCH_ROOT, "", None, id="root_scan_answers_with_findings"),
+        pytest.param(BENCH_ROOT, "run-2026-11-01", None, id="run_dir_answers_with_findings"),
+        pytest.param(BROKEN_ROOT, "broken-json", SOURCE_UNPARSEABLE, id="unparseable_refusal"),
+        pytest.param(
+            BENCH_ROOT, "does-not-exist", BENCH_SOURCE_MISSING, id="missing_source_refusal"
+        ),
+        pytest.param(BENCH_ROOT, "../pyproject.toml", PATH_OUTSIDE_ROOT, id="outside_root_refusal"),
+    ],
+)
+def test_bench_query_leaves_the_artifact_tree_byte_identical(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    artifact_root: Path,
+    requested: str,
+    expected_code: str | None,
+) -> None:
+    served_root = tmp_path / "ggufbench"
+    shutil.copytree(artifact_root, served_root)
+    served_before = _tree_state(tmp_path)
+    fixtures_before = _tree_state(FIXTURES)
+    monkeypatch.setenv(BENCH_ROOT_ENV, str(served_root))
+
+    response = bench_query(requested)
+
+    if expected_code is None:
+        assert response.error is None
+        assert response.findings
+    else:
+        assert response.findings == []
+        assert response.error is not None
+        assert response.error.code == expected_code
+    assert _tree_state(tmp_path) == served_before
+    assert _tree_state(FIXTURES) == fixtures_before
+
+
+def test_bench_query_symlink_escape_refusal_writes_nothing_either(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = _escaping_results_tree(tmp_path)
+    before = _tree_state(tmp_path)
+    monkeypatch.setenv(BENCH_ROOT_ENV, str(root))
+
+    response = bench_query("r1")
+
+    assert response.findings == []
+    assert response.error is not None
+    assert response.error.code == SOURCE_UNPARSEABLE
+    assert _tree_state(tmp_path) == before
 
 
 @pytest.mark.parametrize(

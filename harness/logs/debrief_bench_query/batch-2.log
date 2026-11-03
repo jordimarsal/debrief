@@ -1,0 +1,45 @@
+# debrief_bench_query — batch-2 (T4) gate evidence
+
+All commands run from the worktree root via `uv run`; every exit code 0.
+
+```
+== snapshot sensitivity check (helper detects rewrites and new files) ==
+$ uv run python - <<PY
+    sys.path.insert(0, 'tests'); from test_bench import _tree_state
+    copy tests/fixtures/ggufbench -> <tmp>/ggufbench; before = _tree_state(tmp)
+    rewrite <copy>/run-2026-11-01/results.json = '{}'; add <copy>/stray.txt
+detects rewrite: True
+changed paths: ['ggufbench/run-2026-11-01/results.json', 'ggufbench/stray.txt']
+PY
+
+== uv run pytest tests ==
+============================= 110 passed in 0.44s ==============================
+
+== uv run ruff check . ==
+All checks passed!
+
+== uv run ruff format --check . ==
+49 files already formatted
+
+== uv run mypy --strict ==
+Success: no issues found in 14 source files
+
+== check-traceability ==
+$ uv run python harness/tools/check-traceability.py --feature debrief_bench_query .
+## debrief_bench_query: 3/3 requirements covered
+VERDICT: PASS
+$ uv run python harness/tools/check-traceability.py --feature debrief_bench_query --json .
+{"tool": "check-traceability", "protocol": 1, "verdict": "PASS",
+ "features": [{"name": "debrief_bench_query", "requirements": 3, "covered": 3,
+               "gaps": [], "unresolved": []}]}
+
+== bash harness/init.sh (tail) ==
+── 4. Summary ────────────────────────────────────────
+[OK]    Environment ready. You can start working.
+```
+
+New T4 tests (6): test_bench_query_leaves_the_artifact_tree_byte_identical
+[root_scan_answers_with_findings, run_dir_answers_with_findings, unparseable_refusal,
+missing_source_refusal, outside_root_refusal],
+test_bench_query_symlink_escape_refusal_writes_nothing_either;
+extended static scan test_no_debrief_module_contains_a_write_path (23 markers).

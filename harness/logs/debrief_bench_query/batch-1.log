@@ -1,0 +1,84 @@
+# batch-1 gate log — debrief_bench_query (T1, T2, T3)
+
+Worktree: .buildwright/worktrees/debrief_bench_query
+Date: 2026-11-03
+Scope: T1 (errors/domain + signature tests), T2 (ports/ggufbench adapter + fixtures),
+T3 (QueryBench + bench.query MCP tool + main).
+Note: the deliverables of T1–T3 were already on disk from the approved parent feature
+`debrief` (commit 922409d `feat(debrief): debrief — answer agent questions from
+receipts (bench · run · propose)`); this batch verified them against
+harness/specs/debrief_bench_query/{requirements,design,tasks}.md instead of rewriting
+them. Only file written in this batch outside harness/: none in src/ or tests/.
+One whitespace-only fix: `harness/specs/debrief_bench_query/design.md` code fence
+reformatted by `ruff format` so `ruff format --check .` is green repo-wide (48 files
+already formatted after).
+
+## Gates (all exit=0)
+
+### uv run pytest tests
+```
+configfile: pyproject.toml
+collected 104 items
+
+tests/test_bench.py ............................................         [ 42%]
+tests/test_package.py .                                                  [ 43%]
+tests/test_propose.py .................................                  [ 75%]
+tests/test_quality_gates.py .                                            [ 75%]
+tests/test_run.py .........................                              [100%]
+
+============================= 104 passed in 0.42s ==============================
+```
+
+### Task-scoped runs
+- T1: `uv run pytest tests/test_bench.py -k "signature or shared_signature"`
+  -> `3 passed, 41 deselected in 0.34s`
+  (test_bench_row_carries_measure_signature_and_evidence_from_the_artifact,
+  test_shared_signature_refuses_rows_measured_against_different_baselines,
+  test_shared_signature_accepts_rows_from_one_cohort)
+- T2: `uv run pytest tests/test_bench.py -k "refuses or hostile or unreadable or symlinked or write_path"`
+  -> `40 passed, 4 deselected in 0.39s`
+  (parametrized refusals: bad JSON / wrong schema / outcome enum / non-finite and
+  overflowing scores / line-forging fields / nesting bombs / symlink escapes /
+  unreadable dirs; static no-write-marker scan)
+- T3: `uv run pytest tests/test_bench.py -k "bench_query_tool"` -> `6 passed`
+  (tool-level answers inside the root; traversal/NUL refusals; symlink escape below
+  the requested path) + `uv run pytest tests/test_package.py` -> `1 passed`
+  (`debrief.main` entry point importable lazily).
+
+### uv run ruff check .
+```
+All checks passed!
+```
+
+### uv run ruff format --check .
+```
+48 files already formatted
+```
+
+### uv run mypy --strict
+```
+Success: no issues found in 14 source files
+```
+
+### bash harness/init.sh (final lines)
+```
+[OK]    All tests pass
+[OK]    Environment ready. You can start working.
+```
+
+### Extra evidence (not a gate): MCP server tool registration + tool-level smoke
+```
+tools: ['bench.query', 'routing.propose', 'run.inspect']   # server.list_tools()
+DEBRIEF_BENCH_ROOT=tests/fixtures/ggufbench:
+  bench_query("run-2026-11-01") -> findings: 4, error: None
+  bench_query("../pyproject.toml") -> path_outside_root
+  bench_query("run-1\x00")          -> path_outside_root
+```
+
+### check-traceability.py --feature debrief_bench_query
+```
+## debrief_bench_query: 0/3 requirements covered
+VERDICT: FAIL
+```
+Expected at this batch: the requirements.md traceability table is T4's deliverable
+(batch 2), so R1/R2/R3 rows are still `pending`.

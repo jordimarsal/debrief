@@ -62,7 +62,7 @@ class BuildwrightLog:
         # tool never silently drops a source it was asked to read.
         try:
             st = self._log_file.stat()
-        except FileNotFoundError, NotADirectoryError:
+        except (FileNotFoundError, NotADirectoryError):
             return DebriefError(
                 code=RUN_SOURCE_MISSING,
                 message="no buildwright run log at the requested path",
