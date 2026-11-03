@@ -1,0 +1,79 @@
+# debrief_run_inspect — batch-2 (T4) gate battery, captured verbatim
+# worktree: debrief_run_inspect (S2 run_inspect slice) — closure state after the T4 tests
+# commands run in order: ruff check, ruff format --check, mypy --strict, pytest, init.sh
+
+$ uv run ruff check .
+All checks passed!
+(exit 0)
+
+$ uv run ruff format --check .
+49 files already formatted
+(exit 0)
+
+$ uv run mypy --strict
+Success: no issues found in 14 source files
+(exit 0)
+
+$ uv run pytest tests
+============================= test session starts ==============================
+platform linux -- Python 3.14.7, pytest-9.2.0, pluggy-1.7.0
+rootdir: /home/jordi/works/debrief/.buildwright/worktrees/debrief_run_inspect
+configfile: pyproject.toml
+plugins: anyio-4.16.0
+collected 108 items
+
+tests/test_bench.py ............................................         [ 40%]
+tests/test_package.py .                                                  [ 41%]
+tests/test_propose.py .................................                  [ 72%]
+tests/test_quality_gates.py .                                            [ 73%]
+tests/test_run.py .............................                          [100%]
+
+============================== 108 passed in 0.46s ==============================
+(exit 0)
+
+$ bash harness/init.sh
+── 1. Checking harness files ──────────────────────────
+[OK]    Exists AGENTS.md
+[OK]    Exists .claude/ or .opencode/
+[OK]    Exists harness/CHECKPOINTS.md
+[OK]    Exists harness/feature_list.json
+[OK]    Exists harness/progress/current.md
+[OK]    Exists docs/architecture.md
+[OK]    Exists docs/conventions.md
+[OK]    Exists docs/verification.md
+[OK]    Exists docs/specs.md
+[OK]    Exists harness/specs/
+
+── 2. Validating harness/feature_list.json ────────────
+[OK]    harness/feature_list.json valid (4 features)
+
+── 3. Running tests ──────────────────────────────────
+Running: uv run pytest tests 2>&1
+============================= test session starts ==============================
+platform linux -- Python 3.14.7, pytest-9.2.0, pluggy-1.7.0
+rootdir: /home/jordi/works/debrief/.buildwright/worktrees/debrief_run_inspect
+configfile: pyproject.toml
+plugins: anyio-4.16.0
+collected 108 items
+
+tests/test_bench.py ............................................         [ 40%]
+tests/test_package.py .                                                  [ 41%]
+tests/test_propose.py .................................                  [ 72%]
+tests/test_quality_gates.py .                                            [ 73%]
+tests/test_run.py .............................                          [100%]
+
+============================= 108 passed in 0.49s ==============================
+[OK]    All tests pass
+
+── 4. Summary ────────────────────────────────────────
+[OK]    Environment ready. You can start working.
+(exit 0)
+
+$ python3 harness/tools/check-traceability.py --feature debrief_run_inspect
+## debrief_run_inspect: 3/3 requirements covered
+VERDICT: PASS
+(exit 0)
+
+$ uv run python .capture_demo.py   # transient, deleted itself before the battery
+demo assertions PASS (9 fixtures unchanged, transcript harness/logs/debrief_run_inspect/demo.log)
+(exit 0)

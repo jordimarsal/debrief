@@ -1,0 +1,106 @@
+# debrief_run_inspect demo transcript — run.inspect over MCP stdio
+# server: uv run debrief (MCP stdio); DEBRIEF_RUN_ROOT=tests/fixtures/buildwright
+# R2 proof: fixture fingerprint (size, mtime_ns, sha256) re-checked after serving
+# fixtures fingerprinted before serving: 9 files
+
+>>> tools/list
+["bench.query", "run.inspect", "routing.propose"]
+
+>>> run.inspect {"path": "run-2026-11-02T09-14Z.log"}
+{
+  "findings": [
+    {
+      "model": "llama-3.2-3b-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "pass",
+      "reason": "plan covers every graded dimension",
+      "evidence": "r-2026-11-02T09-14Z/planner.md",
+      "signature": null,
+      "measure": null,
+      "role": "planner"
+    },
+    {
+      "model": "qwen2.5-7b-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "fail",
+      "reason": "patch pushes the join to 41 rows against a graded limit of 40",
+      "evidence": "r-2026-11-02T09-14Z/worker.patch",
+      "signature": null,
+      "measure": null,
+      "role": "worker"
+    },
+    {
+      "model": "phi-3.5-mini-instruct-q4_k_m",
+      "task": "sql-join",
+      "outcome": "pass",
+      "reason": "verdict returned after two prompts",
+      "evidence": "r-2026-11-02T09-14Z/reviewer.md",
+      "signature": null,
+      "measure": null,
+      "role": "reviewer"
+    }
+  ],
+  "error": null
+}
+
+>>> run.inspect {"path": "run-2026-11-03T10-00Z.log"}
+{
+  "findings": [
+    {
+      "model": "phi-3.5-mini-instruct-q4_k_m",
+      "task": "regex-extract",
+      "outcome": "pass",
+      "reason": "extract matched every anchor and group",
+      "evidence": "r-2026-11-03T10-00Z/worker.patch",
+      "signature": null,
+      "measure": null,
+      "role": "worker"
+    }
+  ],
+  "error": null
+}
+
+>>> run.inspect {"path": "run-truncated.log"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/home/jordi/works/debrief/.buildwright/worktrees/debrief_run_inspect/tests/fixtures/buildwright/run-truncated.log is not a buildwright run log",
+    "detail": "malformed step line: 'step: 02 role=worker model=qwen2.5-7b-instruct-q4_k_m outcome=fail reason=\"patch pushes the join to 41'"
+  }
+}
+
+>>> run.inspect {"path": "run-bad-outcome-FAIL.log"}
+{
+  "findings": [],
+  "error": {
+    "code": "source_unparseable",
+    "message": "/home/jordi/works/debrief/.buildwright/worktrees/debrief_run_inspect/tests/fixtures/buildwright/run-bad-outcome-FAIL.log is not a buildwright run log",
+    "detail": "outcome is not one of ['fail', 'pass']: 'FAIL'"
+  }
+}
+
+>>> run.inspect {"path": "does-not-exist.log"}
+{
+  "findings": [],
+  "error": {
+    "code": "run_source_missing",
+    "message": "no buildwright run log at the requested path",
+    "detail": "/home/jordi/works/debrief/.buildwright/worktrees/debrief_run_inspect/tests/fixtures/buildwright/does-not-exist.log"
+  }
+}
+
+>>> run.inspect {"path": "run-2026-11-02T09-14Z.log\u0000"}
+{
+  "findings": [],
+  "error": {
+    "code": "path_outside_root",
+    "message": "requested path could not be resolved within the allowed evidence root",
+    "detail": "'run-2026-11-02T09-14Z.log\\x00': lstat: embedded null character in path"
+  }
+}
+
+# fixtures fingerprinted after serving: 9 files
+# byte-identical (size+mtime_ns+sha256): True
+
+demo assertions PASS

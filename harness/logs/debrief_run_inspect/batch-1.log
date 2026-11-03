@@ -1,0 +1,69 @@
+# debrief_run_inspect — batch 1 (T1, T2, T3)
+
+Worktree: .buildwright/worktrees/debrief_run_inspect · Python 3.14.7 · uv-managed venv
+Date: 2026-11-03
+
+## Gate battery (run after each task; final capture below)
+
+$ uv run ruff check .
+All checks passed!
+→ exit 0
+
+$ uv run ruff format --check .
+48 files already formatted
+→ exit 0
+
+$ uv run mypy --strict
+Success: no issues found in 14 source files
+→ exit 0
+
+$ uv run pytest tests        (last line = summary, per docs/verification.md)
+============================= test session starts ==============================
+platform linux -- Python 3.14.7, pytest-9.2.0, pluggy-1.7.0
+configfile: pyproject.toml
+tests/test_bench.py ............................................         [ 41%]
+tests/test_package.py .                                                  [ 42%]
+tests/test_propose.py .................................                  [ 73%]
+tests/test_quality_gates.py .                                            [ 74%]
+tests/test_run.py ...........................                            [100%]
+============================= 106 passed in 0.44s ==============================
+→ exit 0   (104 → 106: +1 non-regular-path refusal row, +1 root-contract test)
+
+$ bash harness/init.sh
+── 1. Checking harness files ──────────────────────────  [OK] …
+── 2. Validating harness/feature_list.json ────────────  [OK] harness/feature_list.json valid (4 features)
+── 3. Running tests ──────────────────────────────────   [OK] All tests pass (106 passed)
+── 4. Summary ────────────────────────────────────────   [OK]    Environment ready. You can start working.
+→ exit 0, final line "[OK]"
+
+## Toolchain probe (T1 except-clause decision)
+
+$ uv run python -c "import debrief.adapters.buildwright_log; print('imported')"
+imported                      → the module imports on the pinned toolchain
+
+$ uv run python -c "
+try:
+    raise FileNotFoundError('x')
+except FileNotFoundError, NotADirectoryError:
+    print('caught as tuple: PEP 758 active')"
+caught as tuple: PEP 758 active   → the unparenthesized clause is valid py314 syntax
+                                  and catches both exceptions as a tuple
+
+$ # counter-proof: with the parenthesized form, ruff format --check . (target py314)
+$ # demands the unparenthesized shape back:
+unformatted: File would be reformatted
+  --> src/debrief/adapters/buildwright_log.py:65:16
+64 |             st = self._log_file.stat()
+   -         except (FileNotFoundError, NotADirectoryError):
+65 +         except FileNotFoundError, NotADirectoryError:
+1 file would be reformatted
+→ parenthesizing breaks the ruff-format gate (docs/conventions.md gate list);
+  the parent's reviewer-approved gauntlet round 8 (harness/logs/debrief/gauntlet-g23.log,
+  "Defended findings" #1) records the same resolution: "valid on the py314 target and
+  ruff format normalizes towards the unparenthesized shape — The formatter is the canon."
+
+## R2 note
+
+T4 (next batch) owns the read-only guarantee; this batch touched only the adapter
+refusal/mapping surface, adapter tests, and one root-contract test. No write-mode
+open was added (the slice's read path is unchanged: stat() + read_text).
