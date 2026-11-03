@@ -66,7 +66,7 @@
         "Incomparable rows answer a structured error, never an average (R7)."
       ],
       "part_of": "debrief",
-      "status": "pending"
+      "status": "spec_ready"
     }
   ]
 }
