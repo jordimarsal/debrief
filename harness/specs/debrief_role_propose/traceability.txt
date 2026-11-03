@@ -1,0 +1,2 @@
+## debrief_role_propose: 5/5 requirements covered
+VERDICT: PASS

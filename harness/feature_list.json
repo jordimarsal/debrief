@@ -40,7 +40,7 @@
         "No file writes while serving (R2)."
       ],
       "part_of": "debrief",
-      "status": "pending"
+      "status": "blocked"
     },
     {
       "id": 3,
@@ -53,7 +53,7 @@
         "No file writes while serving (R2)."
       ],
       "part_of": "debrief",
-      "status": "pending"
+      "status": "done"
     },
     {
       "id": 4,
@@ -66,7 +66,7 @@
         "Incomparable rows answer a structured error, never an average (R7)."
       ],
       "part_of": "debrief",
-      "status": "pending"
+      "status": "done"
     }
   ]
 }

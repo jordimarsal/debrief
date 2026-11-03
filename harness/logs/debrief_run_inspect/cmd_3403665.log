@@ -1,0 +1,36 @@
+harness/progress/impl_debrief.md:16:| R8 | tests/test_quality_gates.py::test_quality_gate_tooling_is_configured_over_src_and_tests | gates per slice: latest battery harness/logs/debrief/batch-9.log (init.sh, pytest 104 passed, ruff, ruff format, mypy --strict, audit-security all exit=0, on the final closure state after the round-7 fix) | done |
+harness/progress/impl_debrief.md:37:    `ruff format` applied to src/tests.
+harness/progress/impl_debrief.md:42:    ran `ruff format` on the Signatures block only (whitespace).
+harness/progress/impl_debrief.md:56:  checks passed!; `ruff format --check .` → clean; `uv run mypy --strict` → no issues (11
+harness/progress/impl_debrief.md:76:  style ruff format normalizes towards; excluding them keeps the formatter from breaking
+harness/progress/impl_debrief.md:116:  `uv run ruff format --check .` (43 files already formatted),
+harness/progress/impl_debrief.md:205:  init.sh [OK] + 54 passed (was 32), ruff check, ruff format --check (45 files),
+harness/progress/impl_debrief.md:259:  ruff format --check (45 files), mypy --strict (14 files), audit-security (no HIGH;
+harness/progress/impl_debrief.md:304:  → 62 passed; `uv run ruff check .` → All checks passed!; `uv run ruff format
+harness/progress/impl_debrief.md:398:  ruff check, ruff format --check (45 files), mypy --strict (14 files),
+harness/progress/review_debrief.md:5:APPROVED — parent feature `debrief` is done and all acceptance criteria verified first-hand. Gates re-run by me in this session, all green: harness/init.sh ([OK], feature_list valid — 4 features), uv run pytest tests (104 passed), ruff check (clean), ruff format --check (45 files), mypy --strict (14 files, no issues), audit-security.sh (exit 0), gauntlet.sh --feature debrief (exit 0, G1 PASS), check-traceability.py (11/11, VERDICT PASS), uv sync (exit 0). Tasks T1–T4 all [x]; R1–R11 each mapped to concrete tests I located in tests/test_bench.py, test_run.py, test_propose.py, test_quality_gates.py, test_package.py. Architecture holds (domain imports only errors; ports in domain language; adapters own the formats; only mcp_server imports mcp; src matches design.md's file map). R2 verified two ways: the write-marker tripwire test over src/debrief plus my own read of every source file — no write path, no print() outside convention, parameterized logging. Sources-only rule (R3/R4) enforced by the adapters and locked by tests (run findings carry signature/measure null). R5–R7 verified: BW_ROLE_* diff cites both ports, every -/+ line starts with BW_ROLE_, incomparable rows answer incomparable_rows never an average. The 8-round gauntlet trail (rounds 1,2,3,5,7 REJECT → fixed at the named boundaries with regression locks 32→54→62→72→91→104) is coherent across impl_debrief.md, gauntlet_debrief.md (round-8 four PASS lines), gauntlet-g1.log/gauntlet-g23.log, batch-4…9.log, demo.log (33 assertions incl. hostile probes) and install-smoke.log. APPROVAL records per-slice demo notes (command + verbatim output) for S1/S2/S3 plus the parent Completion Gate — satisfying R9/R11. Slice entries stay `pending` in feature_list.json with gating discharged inside the parent: a documented, validator-consistent deviation (the done-rule requires a spec trio per done feature; C6 requires trios only for spec_ready/in_progress/done). One non-blocking nit: README.md still says "Status: scaffolding … parent `pending`" with the pre-spec tool names — stale relative to the done state; recommend refreshing at session close (current.md/history.md closure step). The `except A, B:` unparenthesized form in the adapters is PEP 758 (valid on the py314-only toolchain; the documented reason harness/tools is ruff-excluded) — not a defect.
+harness/logs/debrief/batch-4.log:392:$ uv run ruff format --check .
+harness/logs/debrief/cmd_87996982.log:196:+# so py314-only syntax ruff formats towards must never be applied to them.
+harness/logs/debrief/cmd_7028696.log:198:+# so py314-only syntax ruff formats towards must never be applied to them.
+harness/logs/debrief/cmd_3768935.log:38:257:  ruff format --check (45 files), mypy --strict (14 files), audit-security (no HIGH;
+harness/logs/debrief/batch-7.log:66:$ uv run ruff format --check .
+harness/logs/debrief/cmd_3958269.log:74:$ uv run ruff format --check .
+harness/logs/debrief/cmd_83670306.log:41:  ruff check, ruff format --check (45 files), mypy --strict (14 files),
+harness/logs/debrief/cmd_95752072.log:46:  → 62 passed; `uv run ruff check .` → All checks passed!; `uv run ruff format
+harness/logs/debrief/cmd_95752072.log:140:  ruff check, ruff format --check (45 files), mypy --strict (14 files),
+harness/logs/debrief/cmd_80633356.log:2:  → 62 passed; `uv run ruff check .` → All checks passed!; `uv run ruff format
+harness/logs/debrief/cmd_80633356.log:96:  ruff check, ruff format --check (45 files), mypy --strict (14 files),
+harness/logs/debrief/cmd_33491083.log:278:+# so py314-only syntax ruff formats towards must never be applied to them.
+harness/logs/debrief/batch-8.log:74:$ uv run ruff format --check .
+harness/logs/debrief/batch-6.log:68:$ uv run ruff format --check .
+harness/logs/debrief/batch-5.log:51:$ uv run ruff format --check .
+harness/logs/debrief/batch-9.log:60:$ uv run ruff format --check .
+harness/logs/debrief/batch-9.log:86:gate: uv run ruff format --check . -> exit=0
+harness/logs/debrief/cmd_61403943.log:1:ruff check, ruff format --check (45 files), mypy --strict (14 files),
+harness/logs/debrief/cmd_92353899.log:100:+# so py314-only syntax ruff formats towards must never be applied to them.
+harness/logs/debrief/gauntlet-g23.log:210:   Defended: valid on the py314 target and `ruff format` normalizes towards the
+harness/logs/debrief/gauntlet-g23.log:238:  init.sh [OK], pytest 91 passed, ruff check clean, ruff format --check clean
+harness/logs/debrief/gauntlet-g23.log:357:  pytest 104 passed, ruff check clean, ruff format --check clean (45 files),
+docs/conventions.md:17:- PEP 8 enforced by `ruff format` + `ruff check`; line length 100.
+docs/conventions.md:94:- `ruff check`, `ruff format` and `mypy --strict` are gates: green before every commit, no per-line suppressions without a why-comment.
+pyproject.toml:32:# so py314-only syntax ruff formats towards must never be applied to them.

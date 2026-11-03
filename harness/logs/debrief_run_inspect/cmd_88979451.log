@@ -1,0 +1,181 @@
+diff --git a/harness/feature_list.json b/harness/feature_list.json
+index f926917..cffaa1e 100644
+--- a/harness/feature_list.json
++++ b/harness/feature_list.json
+@@ -53,7 +53,7 @@
+         "No file writes while serving (R2)."
+       ],
+       "part_of": "debrief",
+-      "status": "in_progress"
++      "status": "pending"
+     },
+     {
+       "id": 4,
+diff --git a/tests/test_run.py b/tests/test_run.py
+index 48b04b9..6a4fe42 100644
+--- a/tests/test_run.py
++++ b/tests/test_run.py
+@@ -2,6 +2,8 @@
+ 
+ from __future__ import annotations
+ 
++import ast
++import hashlib
+ import os
+ from collections.abc import Iterator
+ from pathlib import Path
+@@ -16,7 +18,7 @@ from debrief.errors import (
+     SOURCE_UNPARSEABLE,
+     DebriefError,
+ )
+-from debrief.mcp_server import RUN_ROOT_ENV, run_inspect
++from debrief.mcp_server import DEFAULT_RUN_ROOT, RUN_ROOT_ENV, run_inspect
+ from debrief.use_cases import InspectRun
+ 
+ FIXTURES = Path(__file__).parent / "fixtures"
+@@ -44,6 +46,19 @@ def test_inspect_run_maps_each_logged_step_to_a_finding() -> None:
+     assert "41 rows" in worker.reason
+     assert worker.evidence == "r-2026-11-02T09-14Z/worker.patch"
+ 
++    assert [(row.role, row.outcome, row.evidence) for row in answer] == [
++        ("planner", PASS, "r-2026-11-02T09-14Z/planner.md"),
++        ("worker", FAIL, "r-2026-11-02T09-14Z/worker.patch"),
++        ("reviewer", PASS, "r-2026-11-02T09-14Z/reviewer.md"),
++    ]
++    assert [row.model for row in answer] == [
++        "llama-3.2-3b-instruct-q4_k_m",
++        "qwen2.5-7b-instruct-q4_k_m",
++        "phi-3.5-mini-instruct-q4_k_m",
++    ]
++    assert all(row.task == "sql-join" for row in answer)
++    assert all(row.reason for row in answer)
++
+ 
+ def test_run_steps_carry_no_bench_knowledge() -> None:
+     answer = InspectRun(BuildwrightLog(BROKEN_RUN)).run()
+@@ -66,6 +81,7 @@ def test_inspect_run_reports_a_passing_run_as_pass_findings() -> None:
+     ("log_name", "code"),
+     [
+         pytest.param("does-not-exist.log", RUN_SOURCE_MISSING, id="missing_log"),
++        pytest.param("r-2026-11-02T09-14Z", RUN_SOURCE_MISSING, id="non_regular_path"),
+         pytest.param("run-truncated.log", SOURCE_UNPARSEABLE, id="truncated_step_line"),
+         pytest.param("run-no-task.log", SOURCE_UNPARSEABLE, id="no_task_header"),
+         pytest.param("run-invalid-utf8.log", SOURCE_UNPARSEABLE, id="undecodable_bytes"),
+@@ -97,6 +113,11 @@ def test_inspect_run_refuses_steps_with_outcome_tokens_outside_the_enum(
+     assert token in answer.detail
+ 
+ 
++def test_run_inspect_root_contract_is_stable() -> None:
++    assert RUN_ROOT_ENV == "DEBRIEF_RUN_ROOT"
++    assert DEFAULT_RUN_ROOT == "artifacts/buildwright"
++
++
+ def test_run_inspect_tool_answers_within_the_allowed_root(run_env: None) -> None:
+     response = run_inspect("run-2026-11-02T09-14Z.log")
+ 
+@@ -247,3 +268,105 @@ def test_failed_steps_without_zero_padding_still_matches_the_logged_step(tmp_pat
+ 
+     assert isinstance(answer, list)
+     assert [row.outcome for row in answer] == [PASS, FAIL]
++
++
++def _fixture_fingerprint(root: Path) -> dict[str, tuple[int, int, str]]:
++    return {
++        str(path.relative_to(root)): (
++            path.stat().st_size,
++            path.stat().st_mtime_ns,
++            hashlib.sha256(path.read_bytes()).hexdigest(),
++        )
++        for path in sorted(root.rglob("*"))
++        if path.is_file()
++    }
++
++
++def test_serving_run_inspect_leaves_the_run_fixtures_byte_identical(run_env: None) -> None:
++    before = _fixture_fingerprint(RUN_LOGS)
++    assert len(before) >= 8
++
++    broken = run_inspect("run-2026-11-02T09-14Z.log")
++    passing = run_inspect("run-2026-11-03T10-00Z.log")
++    refused = run_inspect("run-truncated.log")
++
++    assert broken.error is None
++    assert [row.role for row in broken.findings] == ["planner", "worker", "reviewer"]
++    assert passing.error is None
++    assert refused.error is not None
++    assert refused.error.code == SOURCE_UNPARSEABLE
++    assert _fixture_fingerprint(RUN_LOGS) == before
++
++
++READ_PATH_MODULES = ("adapters/buildwright_log.py", "use_cases.py", "mcp_server.py")
++WRITE_MODE_CHARS = frozenset("wxa+")
++MUTATING_CALLS = frozenset(
++    {
++        "write_text",
++        "write_bytes",
++        "unlink",
++        "mkdir",
++        "rename",
++        "replace",
++        "remove",
++        "rmdir",
++        "rmtree",
++        "touch",
++        "truncate",
++        "chmod",
++    }
++)
++WRITE_MODULES = frozenset({"shutil"})
++
++
++def _called_name(func: ast.AST) -> str | None:
++    if isinstance(func, ast.Name):
++        return func.id
++    if isinstance(func, ast.Attribute):
++        return func.attr
++    return None
++
++
++def _opens_for_writing(call: ast.Call) -> bool:
++    mode: ast.AST | None = None
++    for keyword in call.keywords:
++        if keyword.arg == "mode":
++            mode = keyword.value
++    if mode is None and len(call.args) > 1:
++        mode = call.args[1]
++    if not isinstance(mode, ast.Constant) or not isinstance(mode.value, str):
++        # A non-literal mode cannot be proven read-only at this gate, so it counts
++        # as an offender rather than passing silently.
++        return mode is not None
++    return bool(WRITE_MODE_CHARS & set(mode.value))
++
++
++def _write_offenses(relative: str, tree: ast.AST) -> list[str]:
++    offenses: list[str] = []
++    for node in ast.walk(tree):
++        if isinstance(node, ast.Import) and any(
++            alias.name in WRITE_MODULES for alias in node.names
++        ):
++            offenses.append(f"{relative} imports a filesystem-write module")
++        elif isinstance(node, ast.ImportFrom) and node.module in WRITE_MODULES:
++            offenses.append(f"{relative} imports a filesystem-write module")
++        elif isinstance(node, ast.Call):
++            name = _called_name(node.func)
++            if name == "open" and _opens_for_writing(node):
++                offenses.append(f"{relative} opens a file in a write mode")
++            elif name in MUTATING_CALLS:
++                offenses.append(f"{relative} calls {name}()")
++    return offenses
++
++
++def test_run_inspect_read_path_has_no_write_mode_open_or_mutation() -> None:
++    package = Path(__file__).parents[1] / "src" / "debrief"
++    offenses = [
++        offense
++        for relative in READ_PATH_MODULES
++        for offense in _write_offenses(
++            relative, ast.parse((package / relative).read_text(encoding="utf-8"))
++        )
++    ]
++
++    assert offenses == []

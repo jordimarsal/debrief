@@ -1,0 +1,60 @@
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:1:{
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:2:  "ggufbench": "0.7.1",
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:3:  "engine_build": "llama.cpp-b4937",
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:4:  "baseline": "b4937-graded-baseline",
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:5:  "rows": [
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:6:    {
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:7:      "model": "evil-model",
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:8:      "task": "sql-join",
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:9:      "outcome": "pass",
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:10:      "reason": "score emitted as the JSON Infinity token",
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:11:      "score": Infinity,
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:12:      "graded": {"syntax": 20, "joins": 40, "limits": 10},
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:13:      "artifact": "nonfinite-score-infinity/sql-join/evil-model.transcript"
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:14:    }
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:15:  ]
+tests/fixtures/ggufbench_broken/nonfinite-score-infinity/results.json:16:}
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:1:{
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:2:  "ggufbench": "0.7.1",
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:3:  "engine_build": "llama.cpp-b4937",
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:4:  "baseline": "b4937-graded-baseline",
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:5:  "rows": [
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:6:    {
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:7:      "model": "evil-model",
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:8:      "task": "sql-join",
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:9:      "outcome": "pass",
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:10:      "reason": "score emitted as the JSON NaN token",
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:11:      "score": NaN,
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:12:      "graded": {"syntax": 20, "joins": 40, "limits": 10},
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:13:      "artifact": "nonfinite-score-nan/sql-join/evil-model.transcript"
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:14:    }
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:15:  ]
+tests/fixtures/ggufbench_broken/nonfinite-score-nan/results.json:16:}
+tests/fixtures/ggufbench_broken/broken-json/results.json:1:{"ggufbench": "0.7.1", "engine_build": "llama.cpp-b4937",
+tests/fixtures/ggufbench_broken/broken-schema/results.json:1:{
+tests/fixtures/ggufbench_broken/broken-schema/results.json:2:  "ggufbench": "0.7.1",
+tests/fixtures/ggufbench_broken/broken-schema/results.json:3:  "engine_build": "llama.cpp-b4937",
+tests/fixtures/ggufbench_broken/broken-schema/results.json:4:  "baseline": "b4937-graded-baseline"
+tests/fixtures/ggufbench_broken/broken-schema/results.json:5:}
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:1:{
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:2:  "ggufbench": "0.7.1",
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:3:  "engine_build": "llama.cpp-b4937",
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:4:  "baseline": "b4937-graded-baseline",
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:5:  "rows": [
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:6:    {
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:7:      "model": "evil-model",
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:8:      "task": "sql-join",
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:9:      "outcome": "pass",
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:10:      "reason": "score emitted as the JSON -Infinity token",
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:11:      "score": -Infinity,
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:12:      "graded": {"syntax": 20, "joins": 40, "limits": 10},
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:13:      "artifact": "nonfinite-score-neg-infinity/sql-join/evil-model.transcript"
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:14:    }
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:15:  ]
+tests/fixtures/ggufbench_broken/nonfinite-score-neg-infinity/results.json:16:}
+tests/fixtures/ggufbench_broken/huge-int-score/results.json:1:{
+tests/fixtures/ggufbench_broken/huge-int-score/results.json:2:  "ggufbench": "0.7.1",
+tests/fixtures/ggufbench_broken/huge-int-score/results.json:3:  "engine_build": "llama.cpp-b4937",
+tests/fixtures/ggufbench_broken/huge-int-score/results.json:4:  "baseline": "b4937-graded-baseline",
+tests/fixtures/ggufbench_broken/huge-int-score/results.json:5:  "rows": [
+tests/fixtures/ggufbench_broken/huge-int-score/results.json:6:    {

@@ -1,0 +1,81 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.7, pytest-9.2.0, pluggy-1.7.0
+rootdir: /home/jordi/works/debrief/.buildwright/worktrees/debrief_role_propose
+configfile: pyproject.toml
+plugins: anyio-4.16.0
+collected 144 items
+
+tests/test_bench.py ...............................................      [ 32%]
+tests/test_package.py .                                                  [ 33%]
+tests/test_propose.py .................................................F [ 68%]
+..F............                                                          [ 78%]
+tests/test_quality_gates.py .                                            [ 79%]
+tests/test_run.py ..............................                         [100%]
+
+=================================== FAILURES ===================================
+________ test_the_slice_write_gate_flags_every_write_shape[write_mode] _________
+
+snippet = "path.open('w')", offense_part = 'opens a file in a write mode'
+
+    @pytest.mark.parametrize(
+        ("snippet", "offense_part"),
+        [
+            pytest.param("path.open('w')", "opens a file in a write mode", id="write_mode"),
+            pytest.param("open(path, 'wb')", "opens a file in a write mode", id="write_mode_builtin"),
+            pytest.param(
+                "path.open(mode='a')", "opens a file in a write mode", id="append_mode_keyword"
+            ),
+            pytest.param(
+                "path.open(mode)", "opens a file in a write mode", id="non_literal_mode_is_an_offender"
+            ),
+            pytest.param("path.write_text('x')", "calls write_text()", id="write_text"),
+            pytest.param("path.write_bytes(b'x')", "calls write_bytes()", id="write_bytes"),
+            pytest.param("path.unlink()", "calls unlink()", id="unlink"),
+            pytest.param("path.mkdir()", "calls mkdir()", id="mkdir"),
+            pytest.param("path.replace(other)", "calls replace()", id="replace"),
+            pytest.param("import shutil", "imports a filesystem-write module", id="shutil_import"),
+        ],
+    )
+    def test_the_slice_write_gate_flags_every_write_shape(snippet: str, offense_part: str) -> None:
+        offenses = _write_offenses("synthetic.py", ast.parse(snippet))
+    
+>       assert len(offenses) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+tests/test_propose.py:917: AssertionError
+_ test_the_slice_write_gate_flags_every_write_shape[non_literal_mode_is_an_offender] _
+
+snippet = 'path.open(mode)', offense_part = 'opens a file in a write mode'
+
+    @pytest.mark.parametrize(
+        ("snippet", "offense_part"),
+        [
+            pytest.param("path.open('w')", "opens a file in a write mode", id="write_mode"),
+            pytest.param("open(path, 'wb')", "opens a file in a write mode", id="write_mode_builtin"),
+            pytest.param(
+                "path.open(mode='a')", "opens a file in a write mode", id="append_mode_keyword"
+            ),
+            pytest.param(
+                "path.open(mode)", "opens a file in a write mode", id="non_literal_mode_is_an_offender"
+            ),
+            pytest.param("path.write_text('x')", "calls write_text()", id="write_text"),
+            pytest.param("path.write_bytes(b'x')", "calls write_bytes()", id="write_bytes"),
+            pytest.param("path.unlink()", "calls unlink()", id="unlink"),
+            pytest.param("path.mkdir()", "calls mkdir()", id="mkdir"),
+            pytest.param("path.replace(other)", "calls replace()", id="replace"),
+            pytest.param("import shutil", "imports a filesystem-write module", id="shutil_import"),
+        ],
+    )
+    def test_the_slice_write_gate_flags_every_write_shape(snippet: str, offense_part: str) -> None:
+        offenses = _write_offenses("synthetic.py", ast.parse(snippet))
+    
+>       assert len(offenses) == 1
+E       assert 0 == 1
+E        +  where 0 = len([])
+
+tests/test_propose.py:917: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_propose.py::test_the_slice_write_gate_flags_every_write_shape[write_mode]
+FAILED tests/test_propose.py::test_the_slice_write_gate_flags_every_write_shape[non_literal_mode_is_an_offender]
+======================== 2 failed, 142 passed in 0.57s =========================

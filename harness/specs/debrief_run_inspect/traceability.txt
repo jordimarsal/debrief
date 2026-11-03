@@ -1,0 +1,2 @@
+## debrief_run_inspect: 3/3 requirements covered
+VERDICT: PASS
