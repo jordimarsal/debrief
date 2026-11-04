@@ -146,4 +146,10 @@ def main() -> None:
         format="%(levelname)s %(name)s %(message)s",
     )
     log.info("debrief MCP server starting on stdio (read-only)")
-    server.run()
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        # Ctrl+C on a stdio server is a normal shutdown, not a crash: exit
+        # quietly with the conventional SIGINT code instead of a traceback.
+        log.info("debrief MCP server stopping (SIGINT)")
+        raise SystemExit(130) from None
