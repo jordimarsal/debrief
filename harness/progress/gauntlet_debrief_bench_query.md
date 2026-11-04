@@ -1,35 +1,16 @@
-# Gauntlet — feature debrief_bench_query
+# Gauntlet — debrief_bench_query
 
-- G1 correctness: PASS (gauntlet.sh exit 0, 4/4 tasks done, traceability 3/3)
-- G2 adversarial: PASS (2 findings, both defended below — no source changes needed)
-- G3 maintainability: PASS (init.sh green, conventions checked, 0 fixes)
-- G4 evidence: PASS (logs: harness/logs/debrief_bench_query/{gauntlet-g1.log, gauntlet-g23.log, batch-3.log, audit-security.log, batch-1.log, batch-2.log})
+- G1 correctness: PASS (harness/tools/gauntlet.sh)
+- G2 adversarial: PASS (3 findings)
+- G3 maintainability: PASS — Layering verified by reading imports, not trusting memory: domain.py imports only errors.py; ports are role-named protocols; format knowledge (results.json schema, validation regexes) lives solely in adapters/ggufbench_store.py; filesystem I/O exists only in the two adapters and mcp_server's path resolution; use cases are thin and pure. No blanket except anywhere: every handler names a narrow type (`_MISSING_PATH_ERRORS`, `(OSError, ValueError, RecursionError)`, `OverflowError`) with `raise X from err` context. The diff's `_MISSING_PATH_ERRORS` named-tuple fix is semantics-preserving vs the PEP 758 inline spelling (which only Python 3.14 executes — repo targets 3.14 but the comment documents the portability rationale), and its deliberate duplication across the two adapters avoids a speculative shared module; grep confirms no bare-comma excepts remain. The expanded 23-marker WRITE_MARKERS scan strengthens the R2 static layer and passes — I read every src/debrief module: zero write calls. New tests are not brittle: copy → serve → byte-compare snapshots both the tmp sandbox and the real fixtures tree, parametrized reject/accept tables, euid-0 skipifs only where chmod binds, error-code assertions target the stable R1 contract; fixture contents (4-row run, 2-run root, dual-baseline sql-join cohort) match assertions exactly. Gates re-run by me, all exit 0: harness/init.sh (150 passed, tracker valid), uv run pytest tests (150), ruff check + ruff format --check, mypy --strict (14 files), validate-feature-list.py, check-traceability 3/3. Empirical adversarial probes all behave correctly: absolute paths (`/etc/passwd`, `/abs/path`) → path_outside_root; `~root/x` not expanded (literal relative name); deep traversal `run-2026-11-01/../../..` refused; `.`/`./`/trailing slash resolve sanely; empty path = documented root scan; NUL in the requested path refused (tested). The review doc's theoretical observation — env root resolved outside `_resolve_within`'s try — I closed empirically: the OS itself refuses to set an env value containing NUL, so no real `DEBRIEF_BENCH_ROOT` can trigger it.
+- G4 evidence: PASS (this report, gate logs)
 
-## Findings
+## Summary
 
-1. [G3] Paren-less PEP 758 `except FileNotFoundError, NotADirectoryError:` in
-   `src/debrief/adapters/ggufbench_store.py:126` reads like a Python 2 leftover.
-   Defended: valid on the project floor (`requires-python = ">=3.14"`,
-   `.python-version` 3.14; `ast.parse` accepts it and it catches both types —
-   verified this pass), it is the same idiom already committed in the
-   S2-owned `src/debrief/adapters/buildwright_log.py:65` (batch discipline
-   forbids editing that file in this feature's batch, and parenthesizing only
-   one adapter would create cross-adapter inconsistency), and the package rule
-   is "parenthesized tuple only when binding `as`" (line 133 needs parens for
-   `as err`). Trade-off: one grammar double-take for pre-3.14 reflexes, against
-   zero behavior change, idiom homogeneity across both adapters, and no
-   unsolicited edits to another slice's file. Revisit only if the floor drops
-   below 3.14.
+G2+G3 pass for debrief_bench_query (S1 bench.query) on the fix-round branch state. The diff vs main is surgical: a Python-3-portable except-tuple fix in both adapters (semantics identical to the PEP 758 inline form main relies on), an expanded R2 write-marker scan, and the R2 runtime byte-identity proofs. I re-read the whole bench.query path with hostile eyes — path resolution, symlink containment, artifact field validation, error totality — and attacked it live: traversal, absolute paths, ~, NUL, Unicode line-forgery, non-finite/overflow scores, nesting bombs, unreadable dirs. Every agent-reachable input answers findings or a typed DebriefError; no write path exists anywhere in src/debrief; concurrency is n/a (stdio, per-call instances, frozen dataclasses). Three findings recorded: the round-1 tracker fix is verified in the working tree but uncommitted at HEAD — defended (git writes blocked in dispatched sessions; landing prepared and assigned to the leader) with a hard condition that the merge must not carry 'blocked'; the dangling-symlink silent-skip defense re-validated and accepted; one new TOCTOU residual documented as out of threat model. All mechanical gates re-run green by me. APPROVED — I would bet production traffic on this diff, contingent only on the leader landing the prepared tracker commit before/at merge.
 
-2. [G2] A contained-but-dangling `results.json` symlink inside the artifact
-   root is skipped rather than refusing the scan. Defended: it under-reports
-   (cannot fabricate findings), follows the same silent-skip rule the approved
-   parent design applies to a run dir without readable results, and total
-   absence still returns the structured `bench_source_missing` error (tested by
-   `missing_root`, `no_results_under_root`, `missing_source_refusal`).
-   Trade-off: refusing the whole scan for one broken link would let a single
-   dangling artifact take down every healthy run in the root — a worse trade
-   for an evidence tool. No fix.
+- [G2] 1. Tracker/record landing (carried from round 1) — content FIXED and verified, commit pending leader landing: the round-1 finding's substance (false 'blocked' status) does not exist in the working tree — `git diff main -- harness/feature_list.json` is empty, validate-feature-list.py says valid, init.sh confirms 'Feature in progress: debrief_bench_query'. However HEAD (7a3fc5b) still carries 'blocked' plus the round-1-era gauntlet report; the fix and round-2 evidence exist only as uncommitted worktree state. Defended with named trade-off: git write commands are blocked for dispatched sessions (I verified — even `git add --dry-run` is refused), so the landing is structurally the leader's step, exactly as this workflow landed batch-1..5 evidence (e.g. 7a3fc5b); a REJECT could not improve the artifact, only force an identical re-run. CONDITION, non-negotiable: the Completion Gate merge must not carry 'blocked' — the leader lands `chore(debrief_bench_query): status in_progress` together with the round-2 evidence batch (worktree state already verified byte-identical to main).
 
-Verdict: PASS (all four lines PASS; every finding defended with named trade-offs,
-consistent with the round-1 reviewer note that no source changes were needed).
+- [G2] 2. Carried defense re-validated: a contained-but-dangling `results.json` symlink is silently skipped rather than refusing the scan. Accepted: it under-reports and cannot fabricate findings; it follows the same silent-skip rule the approved parent design applies to a run dir without readable results; total absence still returns structured `bench_source_missing` (tested: missing_root, no_results_under_root, missing_source_refusal). Trade-off stands: refusing the whole scan for one broken link would let a single bad artifact take down every healthy run in the root — worse for an evidence tool. No fix.
+
+- [G2] 3. New observation, defended: TOCTOU residual on reads — `_contained_results` resolves a candidate, but `read_text` opens the resolved path and open() follows links, so a local writer who owns the evidence tree could swap the resolved in-root results.json for an out-pointing symlink between check and read. Outside the threat model and accepted: agent input is only the root-resolved `path` (re-resolved per call, never persisted), artifacts are operator receipts; note that swapping the *symlink itself* after resolution does NOT redirect the read since reads target the resolved path. O_NOFOLLOW hardening is os.open plumbing to defend against an adversary who already owns the evidence. No fix.

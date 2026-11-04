@@ -134,6 +134,21 @@
   validator -> valid (4 features). APPROVAL refreshed with the round-7/8
   evidence. Parent `debrief` remains `done`.
 
+- S1 `debrief_bench_query` resumption (T4 fix round — gauntlet round-1 G2): the
+  branch tip carried a merge-ordering race on `harness/feature_list.json`
+  (debrief_bench_query "blocked" vs main@7daeea6's flip-watcher "in_progress",
+  undocumented per docs/specs.md). Fixed: tracker restored byte-identical to
+  main (`git diff main -- harness/feature_list.json` empty), validator valid,
+  invariant I1 exactly one in_progress. Gauntlet re-ran from G1 -> PASS
+  (four PASS lines regenerated in `harness/progress/gauntlet_debrief_bench_query.md`;
+  per-pass evidence `harness/logs/debrief_bench_query/{gauntlet-g1.log,
+  gauntlet-g23.log, batch-6.log}`); T4 deliverables re-proven green
+  (150 passed, ruff/format/mypy strict, init.sh `[OK]`, traceability 3/3 PASS
+  saved in the feature directory). Landing constraint recorded in
+  `harness/progress/impl_debrief_bench_query.md` (Dispatch 6): the implementer
+  session allowlist has no `git add`/`git commit`, so the leader lands the
+  tracker sync as `chore(debrief_bench_query): status in_progress`.
+
 ## Next step
 
 Session close: append the history entry and run the checkpoint review (C1–C8).

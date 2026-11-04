@@ -1,2 +1,7 @@
+$ uv run python harness/tools/check-traceability.py --feature debrief_bench_query .
 ## debrief_bench_query: 3/3 requirements covered
 VERDICT: PASS
+
+(run at the fix-round tip; requirements R1/R2/R3 all map to tests under tests/
+and implementation files, statuses done — see the tables in
+harness/progress/impl_debrief_bench_query.md and harness/specs/debrief_bench_query/requirements.md)

@@ -7,3 +7,11 @@
 - traceability:ok
 
 Traceability detail: ok
+
+---
+Command: bash harness/tools/gauntlet.sh --feature debrief_bench_query
+Run: fix-round dispatch (after the tracker-sync fix, feature_list.json back in line
+with main@7daeea6 — `git diff main -- harness/feature_list.json` empty, status
+in_progress, validate-feature-list.py valid, invariant I1 exactly one in_progress).
+Exit: 0. This log replaces the previous G1 log (same verdict, re-run per the
+protocol's "fixes go back to the implementer; the gauntlet re-runs from G1").

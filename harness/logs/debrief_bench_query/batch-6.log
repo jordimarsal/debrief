@@ -1,0 +1,79 @@
+# Batch 6 (fix round) — debrief_bench_query — full gate battery
+
+Dispatch: gauntlet round-1 G2 fix (tracker sync) + T4 re-proof. No src/ or tests/
+changes in this dispatch; all 150 tests, linters, types and the harness gate re-run
+at the fixed state. Raw transcript of every command run this dispatch.
+
+$ git diff main -- harness/feature_list.json
+(exit 0, no output — tracker byte-identical to main@7daeea6: debrief_bench_query
+in_progress; the round-1 "blocked" divergence is gone)
+
+$ uv run python harness/tools/validate-feature-list.py harness/feature_list.json
+feature_list.json is valid (protocol v1)
+
+$ uv run pytest tests
+platform linux -- Python 3.14.7, pytest-9.2.0, pluggy-1.7.0
+rootdir: .../debrief/.buildwright/worktrees/debrief_bench_query
+configfile: pyproject.toml
+plugins: anyio-4.16.0
+collected 150 items
+tests/test_bench.py .................................................... [ 34%]
+.                                                                        [ 35%]
+tests/test_package.py .                                                  [ 36%]
+tests/test_propose.py .................................................. [ 69%]
+...............                                                          [ 79%]
+tests/test_quality_gates.py .                                            [ 80%]
+tests/test_run.py ..............................                         [100%]
+============================= 150 passed in 0.46s ==============================
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+63 files already formatted
+
+$ uv run mypy --strict
+Success: no issues found in 14 source files
+
+$ bash harness/init.sh
+── 1. Checking harness files ──────────────────────────
+[OK]    Exists AGENTS.md
+[OK]    Exists .claude/ or .opencode/
+[OK]    Exists harness/CHECKPOINTS.md
+[OK]    Exists harness/feature_list.json
+[OK]    Exists harness/progress/current.md
+[OK]    Exists docs/architecture.md
+[OK]    Exists docs/conventions.md
+[OK]    Exists docs/verification.md
+[OK]    Exists docs/specs.md
+[OK]    Exists harness/specs/
+── 2. Validating harness/feature_list.json ────────────
+[OK]    harness/feature_list.json valid (4 features)
+[OK]    Feature in progress: debrief_bench_query
+── 3. Running tests ──────────────────────────────────
+Running: uv run pytest tests 2>&1
+[... same 150 collected ...]
+============================= 150 passed in 0.46s ==============================
+[OK]    All tests pass
+── 4. Summary ────────────────────────────────────────
+[OK]    Environment ready. You can start working.
+
+$ bash harness/tools/gauntlet.sh --feature debrief_bench_query
+# Gauntlet G1 — feature debrief_bench_query: PASS
+- spec-requirements:ok
+- spec-design:ok
+- spec-tasks:ok
+- tasks:ok
+- traceability:ok
+Traceability detail: ok
+
+$ uv run python harness/tools/check-traceability.py --feature debrief_bench_query .
+## debrief_bench_query: 3/3 requirements covered
+VERDICT: PASS
+
+$ bash harness/tools/audit-security.sh
+VERDICT: no HIGH severity findings reported by automated tools.
+(exit 0; LOW B101 assert_used × tests/ only + LOW B105 false positive on
+src/debrief/domain.py PASS outcome-enum literal — waived in the review record)
+
+Every command exited 0.

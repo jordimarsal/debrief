@@ -1,0 +1,48 @@
+diff --git a/harness/progress/gauntlet_debrief_bench_query.md b/harness/progress/gauntlet_debrief_bench_query.md
+index c123d49..a04e25c 100644
+--- a/harness/progress/gauntlet_debrief_bench_query.md
++++ b/harness/progress/gauntlet_debrief_bench_query.md
+@@ -1,35 +1,12 @@
+-# Gauntlet — feature debrief_bench_query
++# Gauntlet — debrief_bench_query
+ 
+-- G1 correctness: PASS (gauntlet.sh exit 0, 4/4 tasks done, traceability 3/3)
+-- G2 adversarial: PASS (2 findings, both defended below — no source changes needed)
+-- G3 maintainability: PASS (init.sh green, conventions checked, 0 fixes)
+-- G4 evidence: PASS (logs: harness/logs/debrief_bench_query/{gauntlet-g1.log, gauntlet-g23.log, batch-3.log, audit-security.log, batch-1.log, batch-2.log})
++- G1 correctness: PASS (harness/tools/gauntlet.sh)
++- G2 adversarial: REJECT (1 findings)
++- G3 maintainability: REJECT — Code-side G3 clean. (1) _MISSING_PATH_ERRORS named tuple is the only spelling both valid on every Python 3 and stable under ruff format at py314 — empirically confirmed this pass (ruff format rewrote a parenthesized except tuple to the PEP 758 bare form in a scratch check); the why-comments in both adapters state a true, non-obvious decision, compliant with the conventions 'why-comments only' rule. (2) Duplicating the one-line constant across the two adapters is the right call: a shared home would put a filesystem concept in errors/domain or add a speculative utils module. (3) Editing S2-owned buildwright_log.py in this batch is justified: the documented repo-wide ruff-format gate made 'leave the other slice's file alone' a permanently red gate; reviewer-mandated, semantics preserved. (4) Expanded WRITE_MARKERS are substring tripwires that fail safe (a future prose false-positive blocks a commit rather than waving one through) — acceptable by design. (5) Layering untouched: adapters own all I/O and format knowledge, domain pure, narrow catches only, no blanket except. Gates re-run by me at tip: harness/init.sh green (150 passed), ruff check clean, ruff format --check 63 files, mypy --strict Success (14 files). Process note for the next G4 pass: the committed harness/progress/gauntlet_debrief_bench_query.md still carries the round-2 defense of the paren-less except that this fix round removed; the report must be regenerated when the gauntlet re-runs so a contradicted defense doesn't stand as the record.
++- G4 evidence: FAIL (this report, gate logs)
+ 
+-## Findings
++## Summary
+ 
+-1. [G3] Paren-less PEP 758 `except FileNotFoundError, NotADirectoryError:` in
+-   `src/debrief/adapters/ggufbench_store.py:126` reads like a Python 2 leftover.
+-   Defended: valid on the project floor (`requires-python = ">=3.14"`,
+-   `.python-version` 3.14; `ast.parse` accepts it and it catches both types —
+-   verified this pass), it is the same idiom already committed in the
+-   S2-owned `src/debrief/adapters/buildwright_log.py:65` (batch discipline
+-   forbids editing that file in this feature's batch, and parenthesizing only
+-   one adapter would create cross-adapter inconsistency), and the package rule
+-   is "parenthesized tuple only when binding `as`" (line 133 needs parens for
+-   `as err`). Trade-off: one grammar double-take for pre-3.14 reflexes, against
+-   zero behavior change, idiom homogeneity across both adapters, and no
+-   unsolicited edits to another slice's file. Revisit only if the floor drops
+-   below 3.14.
++G2+G3 for debrief_bench_query at tip 7a3fc5b. The code diff (named _MISSING_PATH_ERRORS constants in both adapters; expanded R2 write-marker scan; byte-identical artifact-tree runtime tests) passes both passes cleanly — no code findings. One real, unfixed G2 finding forces rejection: the branch tip carries a merge-ordering race on harness/feature_list.json (this feature's status 'blocked' vs main's flip-watcher 'in_progress'), undocumented per docs/specs.md's blocked contract and contradicted by the branch's own completion evidence; invisible to every mechanical gate, so agent judgment rejects it. Fix is one trivial tracker-sync batch, then re-run from G1.
+ 
+-2. [G2] A contained-but-dangling `results.json` symlink inside the artifact
+-   root is skipped rather than refusing the scan. Defended: it under-reports
+-   (cannot fabricate findings), follows the same silent-skip rule the approved
+-   parent design applies to a run dir without readable results, and total
+-   absence still returns the structured `bench_source_missing` error (tested by
+-   `missing_root`, `no_results_under_root`, `missing_source_refusal`).
+-   Trade-off: refusing the whole scan for one broken link would let a single
+-   dangling artifact take down every healthy run in the root — a worse trade
+-   for an evidence tool. No fix.
+-
+-Verdict: PASS (all four lines PASS; every finding defended with named trade-offs,
+-consistent with the round-1 reviewer note that no source changes were needed).
++- [G2] [G2] Merge-ordering race leaves a false, undocumented tracker state at the branch tip: the diff flips harness/feature_list.json features[1] (debrief_bench_query) from "in_progress" (main tip 7daeea6, the flip-watcher's resumption of S1) to "blocked" (branch tip 7a3fc5b, inherited by merging main@854ed06 before that flip landed). docs/specs.md defines blocked as 'Work cannot proceed; reason must be documented in the feature directory' — harness/specs/debrief_bench_query/ contains no blocker note, and the branch's own evidence (impl batches 1–5, review APPROVED, gauntlet G1 PASS, all gates green at tip) proves work completed. The stale state is real in the committed diff, unfixed, and no mechanical gate catches it: validate-feature-list.py only checks enum membership + invariant I1, so merging/squashing this tip as-is would downgrade S1 to undocumented 'blocked' precisely while its Completion Gate is requested. Required fix (one trivial batch): bring the branch's feature_list.json back in line with main's 7daeea6 (re-merge main, or one 'chore(debrief_bench_query): status in_progress' commit), then re-run the gauntlet from G1 (mechanical, no code changes).

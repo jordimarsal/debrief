@@ -86,6 +86,81 @@ the gates. Nothing under `src/` or `tests/` was modified in this batch.
 
 ---
 
+## Dispatch 6 (gauntlet round-1 fix): tracker sync + gauntlet re-run from G1
+
+**Situation found:** gauntlet round 1 rejected one G2 finding — the branch tip
+carried a merge-ordering race on `harness/feature_list.json`: features[1]
+(debrief_bench_query) was "blocked" (state inherited by merging main@854ed06
+before main@7daeea6's flip-watcher "in_progress" landed), undocumented per
+docs/specs.md's blocked contract. Required fix: bring the tracker back in line
+with main@7daeea6, re-run the gauntlet from G1, no code changes.
+
+### Fix applied
+- `harness/feature_list.json` — debrief_bench_query status `blocked` →
+  `in_progress`. Verified `git diff main -- harness/feature_list.json` → empty
+  (byte-identical to main@7daeea6) and
+  `uv run python harness/tools/validate-feature-list.py` → valid, invariant I1
+  holds (exactly one in_progress: debrief_bench_query — the true state while the
+  slice requests its Completion Gate; the `done` flip belongs to the human gate).
+  No blocker note needed: there is no blocker, and the false state no longer
+  exists.
+- **Landing note (honest constraint):** this session's command allowlist rejects
+  `git add` and `git commit` ("command not allowed"), so the fix lives in the
+  working tree; the leader must land it as
+  `chore(debrief_bench_query): status in_progress` — the exact alternative the
+  finding itself offers — together with this dispatch's evidence files. The
+  content state the finding was about is already verified identical to main.
+- No `src/` or `tests/` changes; T4's deliverables untouched and re-proven green.
+
+### Gauntlet re-run (from G1, per protocol)
+- **G1** — `bash harness/tools/gauntlet.sh --feature debrief_bench_query`: exit 0,
+  PASS (spec ok, tasks 4/4 `[x]`, traceability ok). Log regenerated:
+  `harness/logs/debrief_bench_query/gauntlet-g1.log`.
+- **G2+G3** — fresh-eyes re-walk of every file the slice owns, plus explicit
+  verification that the round-1 finding is fixed (tracker equality with main is
+  mechanical via `git diff main`); the carried dangling-symlink finding re-defended
+  with its named trade-off. Log regenerated:
+  `harness/logs/debrief_bench_query/gauntlet-g23.log` (the previous log's
+  paren-less-except defense is obsolete since a41fa07 and no longer stands as the
+  record).
+- **G4** — `bash harness/init.sh` green (final line `[OK]`, 150 passed); report
+  regenerated with four PASS lines and the finding recorded as FIXED:
+  `harness/progress/gauntlet_debrief_bench_query.md`.
+
+### T4 re-proof (unchanged deliverables, fresh gate evidence)
+- `uv run pytest tests` → **150 passed** (includes the R2 proofs:
+  `test_no_debrief_module_contains_a_write_path` — 23-marker static scan over
+  `src/debrief`; `test_bench_query_leaves_the_artifact_tree_byte_identical` —
+  5 parametrized bench.query responses, artifact tree + fixtures snapshot
+  byte-identical; `test_bench_query_symlink_escape_refusal_writes_nothing_either`).
+- `uv run ruff check .` → All checks passed!; `uv run ruff format --check .` →
+  63 files already formatted; `uv run mypy --strict` → Success: no issues found
+  in 14 source files; `bash harness/init.sh` → final line `[OK]`.
+- `uv run python harness/tools/check-traceability.py --feature
+  debrief_bench_query .` → PASS, 3/3 requirements covered; refreshed
+  `harness/specs/debrief_bench_query/traceability.txt`.
+- `bash harness/tools/audit-security.sh` → exit 0, no HIGH severity findings
+  (same two LOW waivers as recorded in the review file).
+- Full transcript: `harness/logs/debrief_bench_query/batch-6.log`.
+
+### Files touched by this dispatch
+- `harness/feature_list.json` — the G2 fix (status in_progress, == main@7daeea6).
+- `harness/progress/gauntlet_debrief_bench_query.md` — regenerated four-PASS report.
+- `harness/logs/debrief_bench_query/gauntlet-g1.log`,
+  `harness/logs/debrief_bench_query/gauntlet-g23.log` — regenerated pass logs.
+- `harness/specs/debrief_bench_query/traceability.txt` — refreshed PASS output.
+- `harness/logs/debrief_bench_query/batch-6.log` — this dispatch's gate battery.
+- `harness/progress/impl_debrief_bench_query.md` — this section.
+- `tasks.md` unchanged — T1–T4 already `[x]` with green gates.
+
+### Open item for the leader (before the Completion Gate)
+- Commit the working tree: `chore(debrief_bench_query): status in_progress`
+  (tracker fix + this dispatch's evidence), since the implementer session cannot
+  run git write commands. After that, `git diff main -- harness/feature_list.json`
+  stays empty through the squash/merge, closing the round-1 race for good.
+
+---
+
 feature: debrief_bench_query
 
 ## Dispatch 2 (batch-2): T4 — read-only proof + slice closure
