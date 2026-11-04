@@ -1,4 +1,4 @@
-# debrief
+# debrief-mcp
 
 The evidence MCP: answers agent questions from receipts — what
 [ggufbench](https://github.com/jordimarsal/ggufbench) measured, and where the
