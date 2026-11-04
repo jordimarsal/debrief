@@ -6,6 +6,7 @@ confuse what was measured with what happened in one run (ADR-0002).
 
 from __future__ import annotations
 
+import importlib.metadata
 import logging
 import os
 import signal
@@ -27,6 +28,45 @@ BENCH_ROOT_ENV = "DEBRIEF_BENCH_ROOT"
 RUN_ROOT_ENV = "DEBRIEF_RUN_ROOT"
 DEFAULT_BENCH_ROOT = "artifacts/ggufbench"
 DEFAULT_RUN_ROOT = "artifacts/buildwright"
+
+_HELP = f"""\
+debrief {importlib.metadata.version("debrief")} — answer agent questions from receipts
+MCP stdio server, read-only: every answer is findings or a structured error; never writes.
+
+usage: debrief [-h | --help] [--version]
+
+tools (MCP stdio, JSON-RPC over stdin/stdout; logs go to stderr):
+
+  bench.query      What did ggufbench measure? Findings from ggufbench artifacts.
+                   arg: path — run directory (or the artifact root itself) relative
+                   to the bench root.
+  run.inspect      Where did a buildwright run break? Findings from one run log.
+                   arg: path — the log file relative to the run root.
+  routing.propose  A BW_ROLE_* proposal as text citing both ports' evidence.
+                   args: bench_path (ggufbench artifacts dir), run_path (run log).
+                   Text only; never applied (ADR-0001), targets roles, never
+                   models.yaml (ADR-0003); incomparable rows are refused, never
+                   averaged (ADR-0004).
+
+environment:
+
+  DEBRIEF_BENCH_ROOT  allowed root for ggufbench artifacts
+                      (default: {DEFAULT_BENCH_ROOT})
+  DEBRIEF_RUN_ROOT    allowed root for buildwright run logs
+                      (default: {DEFAULT_RUN_ROOT})
+  DEBRIEF_LOG_LEVEL   stderr logging level (default: INFO)
+
+options:
+
+  -h, --help     show this help and exit
+  --version      show the installed debrief version and exit
+
+exit codes:
+
+  0    normal (help/version, or the client closed the session)
+  2    unknown argument
+  130  interrupted (SIGINT)
+"""
 
 server = MCPServer(
     "debrief",
@@ -151,6 +191,23 @@ def _on_sigint(signum: int, frame: object) -> None:
 
 
 def main() -> None:
+    args = sys.argv[1:]
+    if "-h" in args or "--help" in args:
+        print(_HELP, end="")
+        return
+    if "--version" in args:
+        print(f"debrief {importlib.metadata.version('debrief')}")
+        return
+    if args:
+        # The server takes no positional input: anything else is a typo that
+        # should fail fast instead of silently starting a stdio session that
+        # would then hang waiting for JSON-RPC on the terminal.
+        print(
+            f"debrief: unrecognized argument(s): {' '.join(args)}\ntry 'debrief --help'",
+            file=sys.stderr,
+        )
+        raise SystemExit(2)
+
     logging.basicConfig(
         level=os.environ.get("DEBRIEF_LOG_LEVEL", "INFO"),
         stream=sys.stderr,
