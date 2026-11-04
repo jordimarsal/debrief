@@ -30,7 +30,7 @@ DEFAULT_BENCH_ROOT = "artifacts/ggufbench"
 DEFAULT_RUN_ROOT = "artifacts/buildwright"
 
 _HELP = f"""\
-debrief {importlib.metadata.version("debrief")} — answer agent questions from receipts
+debrief-mcp {importlib.metadata.version("debrief-mcp")} — answer agent questions from receipts
 MCP stdio server, read-only: every answer is findings or a structured error; never writes.
 
 usage: debrief [-h | --help] [--version]
@@ -196,7 +196,7 @@ def main() -> None:
         print(_HELP, end="")
         return
     if "--version" in args:
-        print(f"debrief {importlib.metadata.version('debrief')}")
+        print(f"debrief-mcp {importlib.metadata.version('debrief-mcp')}")
         return
     if args:
         # The server takes no positional input: anything else is a typo that

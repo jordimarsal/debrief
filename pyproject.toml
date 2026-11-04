@@ -1,5 +1,5 @@
 [project]
-name = "debrief"
+name = "debrief-mcp"
 version = "0.1.0"
 description = "Evidence MCP for agents: what ggufbench measured, where a buildwright run broke, role proposals as text — never writes"
 readme = "README.md"
@@ -13,6 +13,7 @@ dependencies = [
 
 [project.scripts]
 debrief = "debrief:main"
+debrief-mcp = "debrief:main"
 
 [build-system]
 requires = ["uv_build>=0.12.19,<0.13.0"]
@@ -38,3 +39,9 @@ select = ["E", "F", "W", "I", "UP", "B"]
 [tool.mypy]
 strict = true
 files = ["src", "tests"]
+
+[tool.uv.build-backend]
+# Distribution is `debrief-mcp` (PyPI name), but the importable package stays
+# `debrief` — module name does not have to match the distribution name.
+module-name = "debrief"
+module-root = "src"

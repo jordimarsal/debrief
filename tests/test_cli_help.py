@@ -49,7 +49,7 @@ def test_version_prints_package_version(
     main()
 
     out = capsys.readouterr().out
-    assert out == f"debrief {importlib.metadata.version('debrief')}\n"
+    assert out == f"debrief-mcp {importlib.metadata.version('debrief-mcp')}\n"
 
 
 @pytest.mark.parametrize("argv", [["debrief", "--wat"], ["debrief", "run-2026-11-01"]])
