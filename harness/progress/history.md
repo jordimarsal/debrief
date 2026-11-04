@@ -26,3 +26,8 @@ retro: 2 dispatches · 0 stalls · 0 restarts
 
 - approved by jordi · reviewer: APPROVED · batches: 2
 retro: 2 dispatches · 0 stalls · 0 restarts
+
+### debrief_bench_query — debrief S1 bench_query — agent asks what ggufbench measured -> findings from real artifacts (2026-11-04)
+
+- approved by jordi · reviewer: APPROVED · batches: 6
+retro: 6 dispatches · 0 stalls · 0 restarts
