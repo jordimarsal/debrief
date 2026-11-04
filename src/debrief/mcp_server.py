@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import os
+import signal
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -139,6 +140,16 @@ def _resolve_within(root_env: str, default_root: str, requested: str) -> Path | 
     return candidate
 
 
+def _on_sigint(signum: int, frame: object) -> None:
+    # Ctrl+C on a stdio server is a normal shutdown, not a crash. Exit
+    # immediately with the conventional SIGINT code: os._exit skips the
+    # interpreter shutdown, where a still-running SDK thread would otherwise
+    # turn a second Ctrl+C into an "Exception ignored" traceback.
+    log.info("debrief MCP server stopping (SIGINT)")
+    sys.stderr.flush()
+    os._exit(130)
+
+
 def main() -> None:
     logging.basicConfig(
         level=os.environ.get("DEBRIEF_LOG_LEVEL", "INFO"),
@@ -146,10 +157,5 @@ def main() -> None:
         format="%(levelname)s %(name)s %(message)s",
     )
     log.info("debrief MCP server starting on stdio (read-only)")
-    try:
-        server.run()
-    except KeyboardInterrupt:
-        # Ctrl+C on a stdio server is a normal shutdown, not a crash: exit
-        # quietly with the conventional SIGINT code instead of a traceback.
-        log.info("debrief MCP server stopping (SIGINT)")
-        raise SystemExit(130) from None
+    signal.signal(signal.SIGINT, _on_sigint)
+    server.run()
