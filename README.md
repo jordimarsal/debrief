@@ -1,5 +1,7 @@
 # debrief-mcp
 
+[![M8ven Score](https://m8ven.ai/badge/mcp/jordimarsal-debrief-mcp-1qz300?v=208d2c524782430e0be7a2d132beb2b3)](https://m8ven.ai/mcp/jordimarsal-debrief-mcp-1qz300?s=readme)
+
 The evidence MCP: answers agent questions from receipts — what
 [ggufbench](https://github.com/jordimarsal/ggufbench) measured, and where the
 last [buildwright](https://github.com/jordimarsal/buildwright) run broke — and

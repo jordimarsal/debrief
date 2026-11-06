@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from mcp.server.mcpserver import MCPServer
+from mcp.types import ToolAnnotations
 
 from debrief.adapters.buildwright_log import BuildwrightLog
 from debrief.adapters.ggufbench_store import GgufbenchStore
@@ -106,6 +107,16 @@ class ProposalResponse:
         return cls(proposal=answer)
 
 
+# Every debrief tool is read-only (R1): findings or a proposal as text, no
+# writes, no network — hosts use these hints to warn before invoking.
+_READ_ONLY = ToolAnnotations(
+    read_only_hint=True,
+    destructive_hint=False,
+    idempotent_hint=True,
+    open_world_hint=False,
+)
+
+
 @server.tool(
     name="bench.query",
     title="What did ggufbench measure?",
@@ -113,6 +124,7 @@ class ProposalResponse:
         "Findings from ggufbench artifacts. `path` is a run directory (or the artifact root "
         "itself) relative to DEBRIEF_BENCH_ROOT. Read-only."
     ),
+    annotations=_READ_ONLY,
 )
 def bench_query(path: str) -> FindingsResponse:
     resolved = _resolve_within(BENCH_ROOT_ENV, DEFAULT_BENCH_ROOT, path)
@@ -128,6 +140,7 @@ def bench_query(path: str) -> FindingsResponse:
         "Findings from one buildwright run log. `path` is the log file relative to "
         "DEBRIEF_RUN_ROOT. Read-only."
     ),
+    annotations=_READ_ONLY,
 )
 def run_inspect(path: str) -> FindingsResponse:
     resolved = _resolve_within(RUN_ROOT_ENV, DEFAULT_RUN_ROOT, path)
@@ -144,6 +157,7 @@ def run_inspect(path: str) -> FindingsResponse:
         "`bench_path` is a ggufbench artifact directory under DEBRIEF_BENCH_ROOT, `run_path` "
         "a buildwright log under DEBRIEF_RUN_ROOT. Returns text; never writes."
     ),
+    annotations=_READ_ONLY,
 )
 def routing_propose(bench_path: str, run_path: str) -> ProposalResponse:
     bench_dir = _resolve_within(BENCH_ROOT_ENV, DEFAULT_BENCH_ROOT, bench_path)
